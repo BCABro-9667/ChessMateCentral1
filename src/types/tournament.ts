@@ -11,6 +11,7 @@ export interface Tournament {
   timeControl: string;
   description: string;
   status: 'Upcoming' | 'Active' | 'Completed' | 'Cancelled';
+  totalRounds?: number; // New field for total rounds
   // registeredPlayers?: Player[]; // Future enhancement
   // results?: any; // Future enhancement
 }

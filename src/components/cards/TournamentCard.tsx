@@ -3,7 +3,7 @@ import type { Tournament } from '@/types/tournament';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CalendarDays, MapPin, Users, Tag, DollarSign, Trophy, Swords, Info, Edit, ListChecks, FileText } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Swords, Info, ListChecks, ClipboardList, Hash } from 'lucide-react'; // Added ClipboardList, Hash
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
@@ -56,6 +56,12 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
           <Trophy className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>Prize Fund: ${tournament.prizeFund}</span>
         </div>
+        {tournament.totalRounds && (
+          <div className="flex items-center text-muted-foreground">
+            <Hash className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span>Total Rounds: {tournament.totalRounds}</span>
+          </div>
+        )}
          <p className="text-sm text-muted-foreground line-clamp-2 pt-2">
           <Info className="w-4 h-4 mr-2 inline-block" />
           {tournament.description}
@@ -80,21 +86,19 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
                   <ListChecks className="mr-1 h-4 w-4" /> View Registrations
                 </Link>
               </Button>
-            {/* Placeholder for admin status actions */}
+             {(tournament.status === 'Active' || tournament.status === 'Upcoming' || tournament.status === 'Completed') && tournament.totalRounds && tournament.totalRounds > 0 && (
+                 <Button asChild variant="outline" size="sm">
+                    <Link href={`/dashboard/tournaments/${tournament.id}/results`}>
+                        <ClipboardList className="mr-1 h-4 w-4" /> Manage Results
+                    </Link>
+                 </Button>
+             )}
             {onUpdateStatus && tournament.status === 'Upcoming' && (
                 <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Active')}>Set Active</Button>
             )}
             {onUpdateStatus && tournament.status === 'Active' && (
                 <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Completed')}>Set Completed</Button>
             )}
-            {/* Add "Publish Results" button for completed tournaments - to be implemented later */}
-            {/* {tournament.status === 'Completed' && (
-              <Button asChild variant="outline" size="sm" disabled>
-                <Link href={`/dashboard/tournaments/${tournament.id}/publish-result`}>
-                 <FileText className="mr-1 h-4 w-4" /> Publish Results
-                </Link>
-              </Button>
-            )} */}
           </div>
         </div>
       </CardFooter>

@@ -5,15 +5,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, PlusCircle, ListOrdered, Newspaper, Settings, Trophy } from 'lucide-react'; // Added Newspaper, Trophy
+import { LayoutDashboard, PlusCircle, Newspaper, Settings, Trophy, ListChecks } from 'lucide-react'; // Added Newspaper, Trophy, ListChecks
 
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/tournaments/create', label: 'Create Tournament', icon: PlusCircle },
   // { href: '/dashboard/tournaments', label: 'Manage Tournaments', icon: ListOrdered }, // Replaced by Overview which lists them
   { href: '/dashboard/publish-news', label: 'Publish News', icon: Newspaper },
-  // Future items:
-  // { href: '/dashboard/results', label: 'Manage Results', icon: Trophy }, 
+  // { href: '/dashboard/results', label: 'Manage Results (Global - TBD)', icon: Trophy }, 
+  // We will link to results per tournament from tournament cards/list. A global results page might be different.
   // { href: '/dashboard/settings', label: 'Settings', icon: Settings }, 
 ];
 

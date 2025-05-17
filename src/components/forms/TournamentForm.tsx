@@ -37,6 +37,7 @@ const tournamentFormSchema = z.object({
   entryFee: z.coerce.number().min(0, "Entry fee cannot be negative."),
   prizeFund: z.coerce.number().min(0, "Prize fund cannot be negative."),
   timeControl: z.string().min(3, "Time control must be specified.").max(50),
+  totalRounds: z.coerce.number().int().min(1, "Total rounds must be at least 1.").optional(),
   description: z.string().min(10, "Description must be at least 10 characters.").max(2000),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
@@ -64,6 +65,7 @@ export default function TournamentForm({ onSubmit, initialData, isLoading: isSub
     entryFee: initialData?.entryFee || 0,
     prizeFund: initialData?.prizeFund || 0,
     timeControl: initialData?.timeControl || "",
+    totalRounds: initialData?.totalRounds || undefined,
     description: initialData?.description || "",
   };
 
@@ -289,22 +291,41 @@ export default function TournamentForm({ onSubmit, initialData, isLoading: isSub
           />
         </div>
         
-        <FormField
-            control={form.control}
-            name="timeControl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Time Control</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., G/90+30 (90 minutes + 30s increment)" {...field} />
-                </FormControl>
-                <FormDescription>
-                  Specify the time control format (e.g., G/60, 45+45, etc.).
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <FormField
+              control={form.control}
+              name="timeControl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Time Control</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., G/90+30" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Specify time control (e.g., G/60, 45+45).
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="totalRounds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total Rounds</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                  </FormControl>
+                   <FormDescription>
+                    Number of rounds in the tournament.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+        </div>
+
 
         <FormField
           control={form.control}

@@ -16,6 +16,7 @@ const initialExampleTournament: Tournament = {
   entryFee: 25,
   prizeFund: 1000,
   timeControl: '90+30 (90 minutes per player, 30 second increment per move)',
+  totalRounds: 5, // Example total rounds
   description: 'Join us for the most anticipated chess event of the year! The Grand Annual Chess Championship brings together players of all levels for a thrilling Swiss-system tournament. Compete for glory and a share of the $1000 prize fund. Held in the spacious Community Hall, this tournament promises excellent playing conditions and a memorable experience. Sharpen your strategies and prepare for intense battles over the board!',
   status: 'Upcoming',
 };
@@ -34,6 +35,11 @@ export function useTournaments() {
         if (!parsedTournaments.find(t => t.id === initialExampleTournament.id)) {
            setTournaments([initialExampleTournament, ...parsedTournaments.filter(t => t.id !== initialExampleTournament.id)]);
         } else {
+            // Ensure existing example tournament has totalRounds if it's from an older version
+            const exampleIndex = parsedTournaments.findIndex(t => t.id === initialExampleTournament.id);
+            if (exampleIndex !== -1 && parsedTournaments[exampleIndex].totalRounds === undefined) {
+                parsedTournaments[exampleIndex].totalRounds = initialExampleTournament.totalRounds;
+            }
             setTournaments(parsedTournaments);
         }
       } else {
