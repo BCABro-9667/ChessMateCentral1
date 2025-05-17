@@ -12,6 +12,7 @@ export interface Tournament {
   description: string;
   status: 'Upcoming' | 'Active' | 'Completed' | 'Cancelled';
   totalRounds?: number; // New field for total rounds
+  imageUrl?: string; // New field for custom image URL
   // registeredPlayers?: Player[]; // Future enhancement
   // results?: any; // Future enhancement
 }

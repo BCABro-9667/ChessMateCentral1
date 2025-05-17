@@ -19,6 +19,7 @@ const initialExampleTournament: Tournament = {
   totalRounds: 5, // Example total rounds
   description: 'Join us for the most anticipated chess event of the year! The Grand Annual Chess Championship brings together players of all levels for a thrilling Swiss-system tournament. Compete for glory and a share of the $1000 prize fund. Held in the spacious Community Hall, this tournament promises excellent playing conditions and a memorable experience. Sharpen your strategies and prepare for intense battles over the board!',
   status: 'Upcoming',
+  imageUrl: 'https://placehold.co/1200x400.png?text=Chess+Championship', // Example image URL
 };
 
 
@@ -32,16 +33,22 @@ export function useTournaments() {
       if (storedTournaments) {
         const parsedTournaments: Tournament[] = JSON.parse(storedTournaments);
         // Ensure the example tournament is always present if no other tournaments are stored or if it's missing
-        if (!parsedTournaments.find(t => t.id === initialExampleTournament.id)) {
-           setTournaments([initialExampleTournament, ...parsedTournaments.filter(t => t.id !== initialExampleTournament.id)]);
+        const exampleTournamentExists = parsedTournaments.some(t => t.id === initialExampleTournament.id);
+        
+        let updatedParsedTournaments = parsedTournaments.map(t => {
+          if (t.id === initialExampleTournament.id) {
+            // Ensure example tournament has all fields from initialExampleTournament
+            return { ...initialExampleTournament, ...t }; 
+          }
+          return t;
+        });
+
+        if (!exampleTournamentExists) {
+           setTournaments([initialExampleTournament, ...updatedParsedTournaments.filter(t => t.id !== initialExampleTournament.id)]);
         } else {
-            // Ensure existing example tournament has totalRounds if it's from an older version
-            const exampleIndex = parsedTournaments.findIndex(t => t.id === initialExampleTournament.id);
-            if (exampleIndex !== -1 && parsedTournaments[exampleIndex].totalRounds === undefined) {
-                parsedTournaments[exampleIndex].totalRounds = initialExampleTournament.totalRounds;
-            }
-            setTournaments(parsedTournaments);
+            setTournaments(updatedParsedTournaments);
         }
+
       } else {
         // If nothing is stored, initialize with the example tournament
         setTournaments([initialExampleTournament]);

@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, Sparkles, Loader2, Info } from "lucide-react";
+import { CalendarIcon, Sparkles, Loader2, Info, Image as ImageIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useState, useCallback } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -37,8 +37,9 @@ const tournamentFormSchema = z.object({
   entryFee: z.coerce.number().min(0, "Entry fee cannot be negative."),
   prizeFund: z.coerce.number().min(0, "Prize fund cannot be negative."),
   timeControl: z.string().min(3, "Time control must be specified.").max(50),
-  totalRounds: z.coerce.number().int().min(1, "Total rounds must be at least 1.").optional(),
+  totalRounds: z.coerce.number().int().min(0, "Total rounds must be at least 0 (e.g. for a single match event, or if not applicable yet).").optional(),
   description: z.string().min(10, "Description must be at least 10 characters.").max(2000),
+  imageUrl: z.string().url({ message: "Please enter a valid URL." }).optional().or(z.literal('')),
 }).refine(data => data.endDate >= data.startDate, {
   message: "End date cannot be before start date.",
   path: ["endDate"],
@@ -65,8 +66,9 @@ export default function TournamentForm({ onSubmit, initialData, isLoading: isSub
     entryFee: initialData?.entryFee || 0,
     prizeFund: initialData?.prizeFund || 0,
     timeControl: initialData?.timeControl || "",
-    totalRounds: initialData?.totalRounds || undefined,
+    totalRounds: initialData?.totalRounds === undefined ? undefined : Number(initialData.totalRounds),
     description: initialData?.description || "",
+    imageUrl: initialData?.imageUrl || "",
   };
 
   const form = useForm<TournamentFormValues>({
@@ -180,6 +182,24 @@ export default function TournamentForm({ onSubmit, initialData, isLoading: isSub
             </FormItem>
           )}
         />
+        
+        <FormField
+          control={form.control}
+          name="imageUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Tournament Cover Image URL</FormLabel>
+              <FormControl>
+                <Input type="url" placeholder="https://example.com/your-image.png" {...field} />
+              </FormControl>
+              <FormDescription className="flex items-center gap-1">
+                 <ImageIcon size={14}/> Provide a direct URL to an image for the tournament (e.g., from Cloudinary, Imgur).
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <FormField
@@ -315,10 +335,16 @@ export default function TournamentForm({ onSubmit, initialData, isLoading: isSub
                 <FormItem>
                   <FormLabel>Total Rounds</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="e.g., 5" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10) || undefined)} />
+                    <Input 
+                      type="number" 
+                      placeholder="e.g., 5" 
+                      {...field} 
+                      onChange={e => field.onChange(e.target.value === '' ? undefined : parseInt(e.target.value, 10))} 
+                      value={field.value === undefined ? '' : field.value}
+                    />
                   </FormControl>
                    <FormDescription>
-                    Number of rounds in the tournament.
+                    Number of rounds in the tournament (e.g., 5). Leave blank or 0 if not applicable.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

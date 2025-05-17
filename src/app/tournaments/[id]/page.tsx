@@ -173,6 +173,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
   };
   
   const totalRounds = tournament?.totalRounds || 0;
+  const coverImageSrc = tournament?.imageUrl || `https://placehold.co/1200x400.png`;
 
   return (
     <>
@@ -182,12 +183,17 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
           <Card className="shadow-xl overflow-hidden">
             <div className="relative h-64 md:h-96 w-full">
               <Image 
-                src={`https://placehold.co/1200x400.png`} 
+                src={coverImageSrc} 
                 alt={`${tournament.name} cover image`} 
                 layout="fill"
                 objectFit="cover"
                 className="bg-muted"
                 data-ai-hint="chess tournament"
+                onError={(e) => {
+                  // Fallback to placeholder if custom image fails to load
+                  e.currentTarget.srcset = `https://placehold.co/1200x400.png`;
+                  e.currentTarget.src = `https://placehold.co/1200x400.png`;
+                }}
               />
               <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
                 <Badge variant={getStatusVariant(tournament.status)} className="absolute top-6 right-6 text-sm px-3 py-1">
@@ -515,5 +521,3 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     </>
   );
 }
-
-    
