@@ -1,4 +1,4 @@
-// src/app/login/page.tsx
+// src/app/register/page.tsx
 "use client";
 
 import { useState, type FormEvent } from 'react';
@@ -7,45 +7,47 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, LogIn } from 'lucide-react';
-import { useAuthMock } from '@/hooks/useAuthMock';
+import { UserPlus, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
+export default function RegisterPage() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading } = useAuthMock();
+  const [confirmPassword, setConfirmPassword] = useState('');
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
-    // In a real app, you'd validate credentials here
-    if (email && password) {
+    if (!name || !email || !password || !confirmPassword) {
       toast({
-        title: "Login Successful",
-        description: "Redirecting to your dashboard...",
-      });
-      login(); // This will redirect via the hook
-    } else {
-      toast({
-        title: "Login Failed",
-        description: "Please enter both email and password.",
+        title: "Registration Failed",
+        description: "Please fill in all fields.",
         variant: "destructive",
       });
+      return;
     }
-  };
+    if (password !== confirmPassword) {
+      toast({
+        title: "Registration Failed",
+        description: "Passwords do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-grow flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 to-accent/5">
-          <p>Loading authentication status...</p>
-        </main>
-      </div>
-    );
-  }
+    // Mock registration success
+    toast({
+      title: "Registration Successful!",
+      description: "You can now log in with your credentials.",
+    });
+    // In a real app, you would save the user data here.
+    // For this mock, we just redirect to login.
+    router.push('/login');
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -53,12 +55,24 @@ export default function LoginPage() {
       <main className="flex-grow flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 to-accent/5">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="text-center">
-            <ShieldCheck className="w-16 h-16 text-primary mx-auto mb-4" />
-            <CardTitle className="text-3xl">Organizer Login</CardTitle>
-            <CardDescription>Access your tournament dashboard.</CardDescription>
+            <UserPlus className="w-16 h-16 text-primary mx-auto mb-4" />
+            <CardTitle className="text-3xl">Organizer Registration</CardTitle>
+            <CardDescription>Create your Chessmate Central account.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  className="text-base"
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -83,14 +97,26 @@ export default function LoginPage() {
                   className="text-base"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="text-base"
+                />
+              </div>
               <Button type="submit" className="w-full text-lg py-3">
-                <LogIn className="mr-2 h-5 w-5" /> Login
+                <UserPlus className="mr-2 h-5 w-5" /> Register
               </Button>
             </form>
           </CardContent>
           <CardFooter className="text-center block">
             <p className="text-sm text-muted-foreground">
-              Don&apos;t have an account? <Link href="/register" className="text-primary hover:underline">Register here</Link>
+              Already have an account? <Link href="/login" className="text-primary hover:underline">Login here</Link>
             </p>
           </CardFooter>
         </Card>
