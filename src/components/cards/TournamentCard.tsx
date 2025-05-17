@@ -27,7 +27,7 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
       <CardHeader>
         <div className="flex justify-between items-start">
-          <CardTitle className="text-2xl mb-1 leading-tight">{tournament.name}</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl mb-1 leading-tight">{tournament.name}</CardTitle>
           <Badge variant={getStatusVariant(tournament.status)} className="ml-2 whitespace-nowrap">
             {tournament.status}
           </Badge>

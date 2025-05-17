@@ -23,7 +23,7 @@ export default function DashboardPage() {
       {list.length === 0 ? (
         <p className="text-muted-foreground mt-4">No {title.toLowerCase()} tournaments.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-4">
           {list.map((tournament) => (
             <TournamentCard key={tournament.id} tournament={tournament} onUpdateStatus={updateTournamentStatus} />
           ))}
@@ -41,7 +41,7 @@ export default function DashboardPage() {
         </div>
         <div>
           <Skeleton className="h-8 w-64 mb-4" />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mt-4">
             {[1,2,3].map(i => <Skeleton key={i} className="h-96 w-full" />)}
           </div>
         </div>
@@ -53,8 +53,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold text-foreground flex items-center">
-          <Swords className="w-8 h-8 mr-3 text-primary" />
+        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center">
+          <Swords className="w-7 h-7 sm:w-8 sm:h-8 mr-3 text-primary" />
           Tournament Dashboard
         </h1>
         <Button asChild size="lg">
