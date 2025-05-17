@@ -1,24 +1,49 @@
 // src/app/tournaments/[id]/page.tsx
-"use client"; // Needs to be client component to use hooks like useTournaments
+"use client"; 
 
 import Header from '@/components/layout/Header';
 import { useTournaments } from '@/hooks/useTournaments';
+import { usePlayerRegistrations } from '@/hooks/usePlayerRegistrations';
+import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3 } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useState, useEffect } from 'react';
+import type { PlayerRegistration } from '@/types/playerRegistration';
 
 
 export default function TournamentDetailsPage({ params }: { params: { id: string } }) {
   const { getTournamentById, isLoadingTournaments } = useTournaments();
   const tournament = getTournamentById(params.id);
+  const { toast } = useToast();
 
-  if (isLoadingTournaments) {
+  const { 
+    getRegistrationsByTournamentId, 
+    addRegistration, 
+    isLoadingRegistrations 
+  } = usePlayerRegistrations();
+
+  const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
+  const [playerName, setPlayerName] = useState('');
+  const [playerEmail, setPlayerEmail] = useState('');
+  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+
+  useEffect(() => {
+    if (tournament && !isLoadingRegistrations) {
+      setRegisteredPlayers(getRegistrationsByTournamentId(tournament.id));
+    }
+  }, [tournament, isLoadingRegistrations, getRegistrationsByTournamentId, isSubmittingRegistration]); // Re-fetch if new registration happens
+
+
+  if (isLoadingTournaments || tournament === undefined) { // tournament initially undefined while loading
     return (
        <>
         <Header />
@@ -28,6 +53,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
           <div className="grid md:grid-cols-3 gap-8">
             <div className="md:col-span-2 space-y-6">
               <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-32 w-full" />
               <Skeleton className="h-32 w-full" />
             </div>
             <div className="space-y-6">
@@ -40,8 +66,8 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     )
   }
 
-  if (!tournament) {
-    notFound(); // Or redirect to a custom not found page
+  if (tournament === null) { // tournament explicitly null if not found after loading
+    notFound();
   }
 
   const getStatusVariant = (status: typeof tournament.status) => {
@@ -51,6 +77,45 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
       case 'Completed': return 'outline';
       case 'Cancelled': return 'destructive';
       default: return 'default';
+    }
+  };
+
+  const handlePublicRegistrationSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!playerName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter your name to register.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!tournament) return;
+
+    setIsSubmittingRegistration(true);
+    try {
+      addRegistration({
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+        playerName,
+        playerEmail,
+        feePaid: false, // Public registrations default to fee not paid
+      });
+      toast({
+        title: "Registration Submitted!",
+        description: `Thank you, ${playerName}, for registering for "${tournament.name}". Your registration is pending confirmation by the organizer.`,
+      });
+      setPlayerName('');
+      setPlayerEmail('');
+    } catch (error) {
+      console.error("Failed to register player:", error);
+      toast({
+        title: "Registration Failed",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingRegistration(false);
     }
   };
 
@@ -67,7 +132,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                 layout="fill"
                 objectFit="cover"
                 className="bg-muted"
-                data-ai-hint="chess tournament"
+                data-ai-hint="chess event"
               />
               <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
                 <Badge variant={getStatusVariant(tournament.status)} className="absolute top-6 right-6 text-sm px-3 py-1">
@@ -82,7 +147,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
 
             <CardContent className="p-6 md:p-8">
               <div className="grid md:grid-cols-3 gap-8">
-                <div className="md:col-span-2 space-y-6">
+                <div className="md:col-span-2 space-y-8">
                   <section>
                     <h2 className="text-2xl font-semibold mb-3 text-primary flex items-center">
                       <Info className="w-6 h-6 mr-2" /> About this Tournament
@@ -92,17 +157,78 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                     </p>
                   </section>
 
+                  {tournament.status === 'Upcoming' && (
+                    <section>
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-xl">
+                            <UserPlus className="w-6 h-6 mr-2 text-primary" /> Register for this Tournament
+                          </CardTitle>
+                        </CardHeader>
+                        <form onSubmit={handlePublicRegistrationSubmit}>
+                          <CardContent className="space-y-4">
+                            <div>
+                              <Label htmlFor="publicPlayerName">Your Full Name</Label>
+                              <Input
+                                id="publicPlayerName"
+                                type="text"
+                                value={playerName}
+                                onChange={(e) => setPlayerName(e.target.value)}
+                                placeholder="Enter your full name"
+                                required
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="publicPlayerEmail">Your Email (Optional)</Label>
+                              <Input
+                                id="publicPlayerEmail"
+                                type="email"
+                                value={playerEmail}
+                                onChange={(e) => setPlayerEmail(e.target.value)}
+                                placeholder="your.email@example.com"
+                                className="mt-1"
+                              />
+                            </div>
+                          </CardContent>
+                          <CardFooter>
+                            <Button type="submit" disabled={isSubmittingRegistration || isLoadingRegistrations} className="w-full sm:w-auto">
+                              {isSubmittingRegistration ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : null}
+                              Submit Registration
+                            </Button>
+                          </CardFooter>
+                        </form>
+                      </Card>
+                    </section>
+                  )}
+
                   <section>
                      <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
-                      <ListChecks className="w-6 h-6 mr-2" /> Registered Players
+                      <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({registeredPlayers.length})
                     </h2>
-                    <div className="bg-muted p-6 rounded-lg text-center">
-                        <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                        <p className="text-muted-foreground">Player registration details will be available soon.</p>
-                        {tournament.status === 'Upcoming' && (
-                             <Button className="mt-4">Register Now (Coming Soon)</Button>
-                        )}
-                    </div>
+                    {isLoadingRegistrations ? (
+                      <Skeleton className="h-20 w-full" />
+                    ) : registeredPlayers.length > 0 ? (
+                      <Card>
+                        <CardContent className="pt-6"> {/* Add padding top for content */}
+                          <ul className="space-y-2">
+                            {registeredPlayers.map(reg => (
+                              <li key={reg.id} className="flex items-center p-2 bg-muted/50 rounded-md">
+                                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
+                                {reg.playerName}
+                              </li>
+                            ))}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                       <div className="bg-muted p-6 rounded-lg text-center">
+                          <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                          <p className="text-muted-foreground">No players registered yet. Be the first!</p>
+                      </div>
+                    )}
                   </section>
 
                   <section>
@@ -151,10 +277,10 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                       <p>{tournament.timeControl}</p>
                     </CardContent>
                   </Card>
-
+                  
                   <Button className="w-full text-lg" size="lg" asChild>
                     <Link href="/">
-                        Back to Home
+                        <Eye className="mr-2 h-5 w-5" /> Back to All Tournaments (Home)
                     </Link>
                   </Button>
                 </aside>
@@ -171,3 +297,4 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     </>
   );
 }
+
