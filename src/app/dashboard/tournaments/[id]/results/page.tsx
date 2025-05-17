@@ -43,8 +43,7 @@ export default function ManageResultsPage() {
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
   const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
   const [playerScores, setPlayerScores] = useState<PlayerScore[]>([]);
-  const [isSaving, setIsSaving] = useState(false); // Not currently used as saves are instant
-
+  
   useEffect(() => {
     if (tournamentId && !isLoadingTournaments) {
       const fetchedTournament = getTournamentById(tournamentId);
@@ -59,27 +58,31 @@ export default function ManageResultsPage() {
     }
   }, [isLoadingRegistrations, tournamentId, getRegistrationsByTournamentId]);
 
+  // Effect 1: Ensure results are initialized in the hook/localStorage
   useEffect(() => {
     if (tournament && registeredPlayers.length > 0 && tournament.totalRounds && tournament.totalRounds > 0) {
-      const initialScores = initializeOrUpdateTournamentResults(tournament.id, registeredPlayers, tournament.totalRounds);
-      setPlayerScores(initialScores);
-    } else if (tournament && tournament.totalRounds === 0) {
-      setPlayerScores([]); // No rounds, no scores
+      initializeOrUpdateTournamentResults(tournament.id, registeredPlayers, tournament.totalRounds);
     }
   }, [tournament, registeredPlayers, initializeOrUpdateTournamentResults]);
-  
-   // Re-fetch and set player scores if they are updated elsewhere (e.g. by the hook itself)
+
+  // Effect 2: Populate local playerScores state from the hook
   useEffect(() => {
-    if (tournament && !isLoadingSavedResults) {
-      const currentResults = getResultsForTournament(tournament.id);
-      if (currentResults) {
-        // Sort player scores to match registration order (optional, for consistency)
-        const sortedPlayerScores = [...currentResults.playerScores].sort((a, b) => {
+    if (tournament && !isLoadingSavedResults) { 
+      const currentTournamentData = getResultsForTournament(tournament.id);
+      if (currentTournamentData && currentTournamentData.playerScores) {
+        const sortedScores = [...currentTournamentData.playerScores].sort((a, b) => {
             const playerAIndex = registeredPlayers.findIndex(p => p.id === a.playerId);
             const playerBIndex = registeredPlayers.findIndex(p => p.id === b.playerId);
+            if (playerAIndex === -1 && playerBIndex === -1) return 0;
+            if (playerAIndex === -1) return 1;
+            if (playerBIndex === -1) return -1;
             return playerAIndex - playerBIndex;
         });
-        setPlayerScores(sortedPlayerScores);
+        setPlayerScores(sortedScores);
+      } else if (tournament.totalRounds && tournament.totalRounds > 0 && registeredPlayers.length > 0) {
+        setPlayerScores([]); // Expecting data soon if initialized
+      } else {
+        setPlayerScores([]); // No rounds or no players
       }
     }
   }, [isLoadingSavedResults, getResultsForTournament, tournament, registeredPlayers]);
@@ -89,12 +92,12 @@ export default function ManageResultsPage() {
     if (!tournament) return;
     const newScore = value === 'null' ? null : parseFloat(value);
     updatePlayerRoundScore(tournament.id, playerId, roundIndex, newScore);
-    // playerScores state will update via the useEffect listening to getResultsForTournament
+    // playerScores state will update via Effect 2 listening to getResultsForTournament
   };
   
   const totalRounds = tournament?.totalRounds || 0;
 
-  if (isLoadingTournaments || tournament === undefined || isLoadingRegistrations || isLoadingSavedResults) {
+  if (isLoadingTournaments || tournament === undefined || isLoadingRegistrations || (isLoadingSavedResults && playerScores.length === 0 && registeredPlayers.length > 0 && totalRounds > 0) ) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-3/4" />
@@ -181,7 +184,7 @@ export default function ManageResultsPage() {
         <CardContent>
           {registeredPlayers.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet. Register players first to manage results.</p>
-          ) : playerScores.length === 0 && !isLoadingSavedResults ? (
+          ) : playerScores.length === 0 && !isLoadingSavedResults && totalRounds > 0 ? ( 
              <p className="text-muted-foreground text-center py-8">Initializing results table... If this persists, ensure the tournament has rounds defined and players are registered.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -201,12 +204,12 @@ export default function ManageResultsPage() {
                     return (
                       <TableRow key={ps.playerId}>
                         <TableCell className="font-medium sticky left-0 bg-card z-10">
-                          {ps.playerName}
+                          {ps.playerName || 'Unknown Player'}
                           {playerReg?.fideRating && playerReg.fideRating > 0 ? (
                             <span className="text-xs text-muted-foreground ml-1">({playerReg.fideRating})</span>
                           ) : null}
                         </TableCell>
-                        {ps.roundScores.map((score, roundIdx) => (
+                        {ps.roundScores && ps.roundScores.length === totalRounds ? ps.roundScores.map((score, roundIdx) => (
                           <TableCell key={`score-${ps.playerId}-${roundIdx}`} className="text-center">
                             <Select
                               value={score === null ? 'null' : String(score)}
@@ -223,7 +226,18 @@ export default function ManageResultsPage() {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                        ))}
+                        )) : (
+                          // Fill with empty cells if roundScores is not ready or mismatched length
+                          [...Array(totalRounds)].map((_, roundIdx) => (
+                            <TableCell key={`empty-score-${ps.playerId}-${roundIdx}`} className="text-center">
+                              <Select disabled>
+                                <SelectTrigger className="w-[100px] h-9 mx-auto">
+                                  <SelectValue placeholder="N/A" />
+                                </SelectTrigger>
+                              </Select>
+                            </TableCell>
+                          ))
+                        )}
                         <TableCell className="text-center font-bold">{ps.totalScore.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</TableCell>
                       </TableRow>
                     );
@@ -234,14 +248,7 @@ export default function ManageResultsPage() {
           )}
         </CardContent>
       </Card>
-       {/*
-        <div className="flex justify-end mt-6">
-            <Button onClick={handleSaveChanges} disabled={isSaving} size="lg">
-            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save All Results
-            </Button>
-        </div>
-      */}
     </div>
   );
 }
+

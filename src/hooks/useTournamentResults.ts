@@ -44,7 +44,7 @@ export function useTournamentResults() {
     tournamentId: string,
     registeredPlayers: PlayerRegistration[],
     totalRounds: number
-  ): PlayerScore[] => {
+  ): void => { // Return type is void
     
     setTournamentResults(prevResults => {
       let existingTournamentResult = prevResults.find(tr => tr.tournamentId === tournamentId);
@@ -53,17 +53,23 @@ export function useTournamentResults() {
       if (existingTournamentResult) {
         // Update existing: add new players, remove players no longer registered, ensure roundScores length matches
         const registeredPlayerIds = new Set(registeredPlayers.map(p => p.id));
+        
         updatedPlayerScores = existingTournamentResult.playerScores
           .filter(ps => registeredPlayerIds.has(ps.playerId)) // Keep only currently registered players
-          .map(ps => { // Ensure existing players have correct number of rounds
+          .map(ps => { // Ensure existing players have correct number of rounds and updated info
+            const playerRegInfo = registeredPlayers.find(p => p.id === ps.playerId);
             const newRoundScores = [...ps.roundScores];
             while (newRoundScores.length < totalRounds) {
               newRoundScores.push(null);
             }
+            // Truncate if totalRounds decreased
+            const finalRoundScores = newRoundScores.slice(0, totalRounds); 
             return {
               ...ps,
-              roundScores: newRoundScores.slice(0, totalRounds), // Truncate if totalRounds decreased
-              totalScore: calculateTotalScore(newRoundScores.slice(0, totalRounds))
+              playerName: playerRegInfo ? playerRegInfo.playerName : ps.playerName, // Update name if changed
+              fideRating: playerRegInfo ? playerRegInfo.fideRating : ps.fideRating, // Update rating if changed
+              roundScores: finalRoundScores, 
+              totalScore: calculateTotalScore(finalRoundScores)
             };
           });
 
@@ -80,7 +86,7 @@ export function useTournamentResults() {
           }
         });
         
-        existingTournamentResult.playerScores = updatedPlayerScores;
+        existingTournamentResult = { ...existingTournamentResult, playerScores: updatedPlayerScores };
 
       } else {
         // Initialize new
@@ -98,25 +104,7 @@ export function useTournamentResults() {
       localStorage.setItem(`${RESULTS_KEY_PREFIX}${tournamentId}`, JSON.stringify(existingTournamentResult));
       return newResultsList;
     });
-    
-    // This is a bit of a hack to get the latest state for the return value immediately
-    // A more robust solution might involve returning a promise or using a state management library
-    const finalResult = getResultsForTournament(tournamentId) || { tournamentId, playerScores: []};
-    // If still not found (which means setTournamentResults hasn't updated the state in time for this sync call)
-    // reconstruct it based on what would have been created.
-    if (!finalResult.playerScores.length) {
-         const initialScores = registeredPlayers.map(player => ({
-            playerId: player.id,
-            playerName: player.playerName,
-            fideRating: player.fideRating,
-            roundScores: Array(totalRounds).fill(null),
-            totalScore: 0,
-        }));
-        return initialScores;
-    }
-    return finalResult.playerScores;
-
-  }, [getResultsForTournament]);
+  }, []); // Empty dependency array: function identity is stable
 
 
   const updatePlayerRoundScore = useCallback((
@@ -127,22 +115,29 @@ export function useTournamentResults() {
   ) => {
     setTournamentResults(prevResults => {
       const tournamentResultIndex = prevResults.findIndex(tr => tr.tournamentId === tournamentId);
-      if (tournamentResultIndex === -1) return prevResults; // Should not happen if initialized
+      if (tournamentResultIndex === -1) {
+        console.warn("Tournament result not found for update, should have been initialized.", tournamentId);
+        return prevResults;
+      }
 
       const updatedTournamentResult = { ...prevResults[tournamentResultIndex] };
       const playerScoresIndex = updatedTournamentResult.playerScores.findIndex(ps => ps.playerId === playerId);
-      if (playerScoresIndex === -1) return prevResults; // Should not happen
-
-      const updatedPlayerScores = { ...updatedTournamentResult.playerScores[playerScoresIndex] };
-      updatedPlayerScores.roundScores = [...updatedPlayerScores.roundScores]; // Ensure new array
       
-      if (roundIndex >= 0 && roundIndex < updatedPlayerScores.roundScores.length) {
-        updatedPlayerScores.roundScores[roundIndex] = score;
-        updatedPlayerScores.totalScore = calculateTotalScore(updatedPlayerScores.roundScores);
+      if (playerScoresIndex === -1) {
+        console.warn("Player score not found for update.", playerId, "in tournament", tournamentId);
+        return prevResults;
+      }
+
+      const updatedPlayerScoreItem = { ...updatedTournamentResult.playerScores[playerScoresIndex] };
+      updatedPlayerScoreItem.roundScores = [...updatedPlayerScoreItem.roundScores]; // Ensure new array
+      
+      if (roundIndex >= 0 && roundIndex < updatedPlayerScoreItem.roundScores.length) {
+        updatedPlayerScoreItem.roundScores[roundIndex] = score;
+        updatedPlayerScoreItem.totalScore = calculateTotalScore(updatedPlayerScoreItem.roundScores);
 
         updatedTournamentResult.playerScores = [
           ...updatedTournamentResult.playerScores.slice(0, playerScoresIndex),
-          updatedPlayerScores,
+          updatedPlayerScoreItem,
           ...updatedTournamentResult.playerScores.slice(playerScoresIndex + 1),
         ];
         
@@ -151,9 +146,10 @@ export function useTournamentResults() {
         localStorage.setItem(`${RESULTS_KEY_PREFIX}${tournamentId}`, JSON.stringify(updatedTournamentResult));
         return newResultsList;
       }
+      console.warn("Round index out of bounds for update.", roundIndex, "player", playerId);
       return prevResults; // No change if roundIndex is out of bounds
     });
-  }, []);
+  }, []); // Empty dependency array: function identity is stable
   
   return {
     isLoadingResults: isLoading,
