@@ -4,6 +4,7 @@
 import Header from '@/components/layout/Header';
 import { useTournaments } from '@/hooks/useTournaments';
 import { usePlayerRegistrations } from '@/hooks/usePlayerRegistrations';
+import { useTournamentResults } from '@/hooks/useTournamentResults'; // Import useTournamentResults
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -12,13 +13,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon, ListOrdered } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
+import type { PlayerScore } from '@/types/tournamentResult'; // Import PlayerScore
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 export default function TournamentDetailsPage({ params }: { params: { id: string } }) {
@@ -32,7 +35,14 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     isLoadingRegistrations 
   } = usePlayerRegistrations();
 
+  const { 
+    getResultsForTournament, 
+    isLoadingResults: isLoadingSavedResults 
+  } = useTournamentResults(); // Use the hook
+
   const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
+  const [tournamentStandings, setTournamentStandings] = useState<PlayerScore[]>([]);
+
   // Form state for public registration
   const [playerName, setPlayerName] = useState('');
   const [playerEmail, setPlayerEmail] = useState('');
@@ -50,6 +60,27 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
       setRegisteredPlayers(getRegistrationsByTournamentId(tournament.id));
     }
   }, [tournament, isLoadingRegistrations, getRegistrationsByTournamentId, isSubmittingRegistration]);
+
+  useEffect(() => {
+    if (tournament && !isLoadingSavedResults) {
+      const results = getResultsForTournament(tournament.id);
+      if (results && results.playerScores) {
+        const sortedStandings = [...results.playerScores].sort((a, b) => {
+          if (b.totalScore !== a.totalScore) {
+            return b.totalScore - a.totalScore;
+          }
+          // Add tie-breaking logic if needed, e.g., by FIDE rating or name
+          if (b.fideRating && a.fideRating && b.fideRating !== a.fideRating) {
+            return b.fideRating - a.fideRating;
+          }
+          return a.playerName.localeCompare(b.playerName);
+        });
+        setTournamentStandings(sortedStandings);
+      } else {
+        setTournamentStandings([]);
+      }
+    }
+  }, [tournament, isLoadingSavedResults, getResultsForTournament]);
 
 
   if (isLoadingTournaments || tournament === undefined) {
@@ -140,6 +171,8 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
       setIsSubmittingRegistration(false);
     }
   };
+  
+  const totalRounds = tournament?.totalRounds || 0;
 
   return (
     <>
@@ -350,10 +383,79 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                      <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
                       <BarChart3 className="w-6 h-6 mr-2" /> Results & Standings
                     </h2>
-                     <div className="bg-muted p-6 rounded-lg text-center">
-                        <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                        <p className="text-muted-foreground">Results will be published here after the tournament concludes.</p>
-                    </div>
+                    {isLoadingSavedResults && (
+                      <div className="space-y-2">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    )}
+                    {!isLoadingSavedResults && tournament.status === 'Upcoming' && (
+                       <div className="bg-muted p-6 rounded-lg text-center">
+                          <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                          <p className="text-muted-foreground">Results will be published here once the tournament begins and scores are entered.</p>
+                      </div>
+                    )}
+                    {!isLoadingSavedResults && tournament.status === 'Cancelled' && (
+                       <div className="bg-muted p-6 rounded-lg text-center">
+                          <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                          <p className="text-muted-foreground">Results are not applicable as this tournament has been cancelled.</p>
+                      </div>
+                    )}
+                    {!isLoadingSavedResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds > 0 && (
+                      tournamentStandings.length > 0 ? (
+                        <Card>
+                          <CardContent className="pt-6">
+                            <div className="overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead className="w-[50px]">Rank</TableHead>
+                                    <TableHead>Player</TableHead>
+                                    {[...Array(totalRounds)].map((_, i) => (
+                                      <TableHead key={`round-col-${i + 1}`} className="text-center">R{i + 1}</TableHead>
+                                    ))}
+                                    <TableHead className="text-center font-semibold">Total</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {tournamentStandings.map((playerScore, index) => (
+                                    <TableRow key={playerScore.playerId}>
+                                      <TableCell className="font-medium">{index + 1}</TableCell>
+                                      <TableCell>
+                                        {playerScore.playerName}
+                                        {playerScore.fideRating && playerScore.fideRating > 0 ? (
+                                          <span className="text-xs text-muted-foreground ml-1">({playerScore.fideRating})</span>
+                                        ) : null}
+                                      </TableCell>
+                                      {playerScore.roundScores.map((score, roundIdx) => (
+                                        <TableCell key={`player-${playerScore.playerId}-round-${roundIdx}`} className="text-center">
+                                          {score !== null ? score.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-'}
+                                        </TableCell>
+                                      ))}
+                                      <TableCell className="text-center font-bold">{playerScore.totalScore.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                         <div className="bg-muted p-6 rounded-lg text-center">
+                            <ListOrdered className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground">
+                              {tournament.status === 'Active' ? 'Live results will appear here as they are updated.' : 'Final results are being processed or no scores have been entered yet.'}
+                            </p>
+                        </div>
+                      )
+                    )}
+                     {!isLoadingSavedResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds === 0 && (
+                         <div className="bg-muted p-6 rounded-lg text-center">
+                            <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                            <p className="text-muted-foreground">Results cannot be displayed as no rounds are defined for this tournament.</p>
+                        </div>
+                    )}
                   </section>
                 </div>
 
@@ -367,6 +469,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                     <CardContent className="space-y-2 text-sm">
                       <p><strong>Start Date:</strong> {format(new Date(tournament.startDate), 'EEEE, MMMM dd, yyyy')}</p>
                       <p><strong>End Date:</strong> {format(new Date(tournament.endDate), 'EEEE, MMMM dd, yyyy')}</p>
+                       {totalRounds > 0 && <p><strong>Total Rounds:</strong> {totalRounds}</p>}
                     </CardContent>
                   </Card>
                   
@@ -412,3 +515,5 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     </>
   );
 }
+
+    
