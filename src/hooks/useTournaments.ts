@@ -4,90 +4,107 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Tournament } from '@/types/tournament';
 
-const TOURNAMENTS_KEY = 'chessmateTournaments';
-
-const initialExampleTournament: Tournament = {
-  id: 'example-public-tournament',
-  name: 'Grand Annual Chess Championship',
-  type: 'Swiss',
-  location: 'Community Hall, Downtown',
-  startDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // One week from now
-  endDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(), // Nine days from now
-  entryFee: 25,
-  prizeFund: 1000,
-  timeControl: '90+30 (90 minutes per player, 30 second increment per move)',
-  totalRounds: 5, // Example total rounds
-  description: 'Join us for the most anticipated chess event of the year! The Grand Annual Chess Championship brings together players of all levels for a thrilling Swiss-system tournament. Compete for glory and a share of the $1000 prize fund. Held in the spacious Community Hall, this tournament promises excellent playing conditions and a memorable experience. Sharpen your strategies and prepare for intense battles over the board!',
-  status: 'Upcoming',
-  imageUrl: 'https://placehold.co/1200x400.png?text=Chess+Championship', // Example image URL
-};
-
+// const TOURNAMENTS_KEY = 'chessmateTournaments_localStorage'; // Changed key to avoid conflict if testing both
 
 export function useTournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingTournaments, setIsLoadingTournaments] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchTournaments = useCallback(async () => {
+    setIsLoadingTournaments(true);
+    setError(null);
     try {
-      const storedTournaments = localStorage.getItem(TOURNAMENTS_KEY);
-      if (storedTournaments) {
-        const parsedTournaments: Tournament[] = JSON.parse(storedTournaments);
-        // Ensure the example tournament is always present if no other tournaments are stored or if it's missing
-        const exampleTournamentExists = parsedTournaments.some(t => t.id === initialExampleTournament.id);
-        
-        let updatedParsedTournaments = parsedTournaments.map(t => {
-          if (t.id === initialExampleTournament.id) {
-            // Ensure example tournament has all fields from initialExampleTournament
-            return { ...initialExampleTournament, ...t }; 
-          }
-          return t;
-        });
-
-        if (!exampleTournamentExists) {
-           setTournaments([initialExampleTournament, ...updatedParsedTournaments.filter(t => t.id !== initialExampleTournament.id)]);
-        } else {
-            setTournaments(updatedParsedTournaments);
-        }
-
-      } else {
-        // If nothing is stored, initialize with the example tournament
-        setTournaments([initialExampleTournament]);
-        localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify([initialExampleTournament]));
+      const response = await fetch('/api/tournaments');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tournaments: ${response.statusText}`);
       }
-    } catch (error) {
-      console.error("Failed to load tournaments from localStorage", error);
-      setTournaments([initialExampleTournament]); // Fallback to example tournament
+      const data: Tournament[] = await response.json();
+      setTournaments(data);
+    } catch (err) {
+      console.error("Failed to load tournaments from API", err);
+      setError((err as Error).message);
+      setTournaments([]); // Fallback to empty array on error
     } finally {
-      setIsLoading(false);
+      setIsLoadingTournaments(false);
     }
   }, []);
 
-  const addTournament = useCallback((tournamentData: Omit<Tournament, 'id' | 'status'>) => {
-    const newTournament: Tournament = {
-      ...tournamentData,
-      id: `tourn_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`,
-      status: 'Upcoming', // Default status for new tournaments
-    };
-    setTournaments(prevTournaments => {
-      const updatedTournaments = [newTournament, ...prevTournaments];
-      localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(updatedTournaments));
-      return updatedTournaments;
-    });
-    return newTournament;
-  }, []);
+  useEffect(() => {
+    fetchTournaments();
+  }, [fetchTournaments]);
+
+  const addTournament = useCallback(async (tournamentData: Omit<Tournament, 'id' | 'status'>) => {
+    setIsLoadingTournaments(true); // Or a specific loading state for add
+    setError(null);
+    try {
+      const response = await fetch('/api/tournaments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(tournamentData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to add tournament: ${response.statusText}`);
+      }
+      const newTournament: Tournament = await response.json();
+      setTournaments(prevTournaments => [newTournament, ...prevTournaments]);
+      return newTournament;
+    } catch (err) {
+      console.error("Failed to add tournament via API", err);
+      setError((err as Error).message);
+      throw err; // Re-throw to be caught by form
+    } finally {
+       // Re-fetch all tournaments to ensure consistency or rely on optimistic update
+      await fetchTournaments(); // Could be more efficient with optimistic updates
+      setIsLoadingTournaments(false);
+    }
+  }, [fetchTournaments]);
   
   const getTournamentById = useCallback((id: string): Tournament | undefined => {
+    // This will still work on the client-side fetched data.
+    // For a direct fetch, you'd call `/api/tournaments/${id}`
     return tournaments.find(t => t.id === id);
   }, [tournaments]);
 
-  const updateTournamentStatus = useCallback((id: string, status: Tournament['status']) => {
-    setTournaments(prev => {
-      const updated = prev.map(t => t.id === id ? { ...t, status } : t);
-      localStorage.setItem(TOURNAMENTS_KEY, JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
+  const updateTournamentStatus = useCallback(async (id: string, status: Tournament['status']) => {
+    setError(null);
+    const originalTournaments = [...tournaments];
+    // Optimistic update
+    setTournaments(prev => prev.map(t => t.id === id ? { ...t, status } : t));
+
+    try {
+      const response = await fetch(`/api/tournaments/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to update tournament status: ${response.statusText}`);
+      }
+      // If successful, data is already optimistically updated.
+      // Optionally, re-fetch the single tournament or all to confirm.
+      // await fetchTournaments(); 
+    } catch (err) {
+      console.error("Failed to update tournament status via API", err);
+      setError((err as Error).message);
+      setTournaments(originalTournaments); // Rollback optimistic update on error
+    }
+  }, [tournaments, fetchTournaments]);
 
 
-  return { tournaments, addTournament, getTournamentById, updateTournamentStatus, isLoadingTournaments: isLoading };
+  return { 
+    tournaments, 
+    addTournament, 
+    getTournamentById, 
+    updateTournamentStatus, 
+    isLoadingTournaments,
+    errorLoadingTournaments: error,
+    refreshTournaments: fetchTournaments // Expose a way to manually refresh
+  };
 }
