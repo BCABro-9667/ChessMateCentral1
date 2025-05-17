@@ -40,6 +40,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ editorRef, content, onC
       init={{
         width: "100%",
         height: height,
+        readonly: false, // Explicitly set to ensure editor is not read-only
         plugins: [
           "advlist",
           "autolink",
