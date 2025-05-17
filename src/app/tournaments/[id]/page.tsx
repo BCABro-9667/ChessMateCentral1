@@ -12,12 +12,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 export default function TournamentDetailsPage({ params }: { params: { id: string } }) {
@@ -32,18 +33,26 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
   } = usePlayerRegistrations();
 
   const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
+  // Form state for public registration
   const [playerName, setPlayerName] = useState('');
   const [playerEmail, setPlayerEmail] = useState('');
+  const [gender, setGender] = useState('');
+  const [dob, setDob] = useState('');
+  const [organization, setOrganization] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [fideRating, setFideRating] = useState<number | ''>(0);
+  const [fideId, setFideId] = useState('-');
+
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
 
   useEffect(() => {
     if (tournament && !isLoadingRegistrations) {
       setRegisteredPlayers(getRegistrationsByTournamentId(tournament.id));
     }
-  }, [tournament, isLoadingRegistrations, getRegistrationsByTournamentId, isSubmittingRegistration]); // Re-fetch if new registration happens
+  }, [tournament, isLoadingRegistrations, getRegistrationsByTournamentId, isSubmittingRegistration]);
 
 
-  if (isLoadingTournaments || tournament === undefined) { // tournament initially undefined while loading
+  if (isLoadingTournaments || tournament === undefined) {
     return (
        <>
         <Header />
@@ -66,7 +75,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     )
   }
 
-  if (tournament === null) { // tournament explicitly null if not found after loading
+  if (tournament === null) {
     notFound();
   }
 
@@ -100,13 +109,26 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
         playerName,
         playerEmail,
         feePaid: false, // Public registrations default to fee not paid
+        gender,
+        dob,
+        organization,
+        mobile,
+        fideRating: Number(fideRating) || 0,
+        fideId: fideId || '-',
       });
       toast({
         title: "Registration Submitted!",
         description: `Thank you, ${playerName}, for registering for "${tournament.name}". Your registration is pending confirmation by the organizer.`,
       });
+      // Clear form
       setPlayerName('');
       setPlayerEmail('');
+      setGender('');
+      setDob('');
+      setOrganization('');
+      setMobile('');
+      setFideRating(0);
+      setFideId('-');
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
@@ -132,7 +154,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                 layout="fill"
                 objectFit="cover"
                 className="bg-muted"
-                data-ai-hint="chess event"
+                data-ai-hint="chess tournament"
               />
               <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
                 <Badge variant={getStatusVariant(tournament.status)} className="absolute top-6 right-6 text-sm px-3 py-1">
@@ -167,28 +189,107 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                         </CardHeader>
                         <form onSubmit={handlePublicRegistrationSubmit}>
                           <CardContent className="space-y-4">
-                            <div>
-                              <Label htmlFor="publicPlayerName">Your Full Name</Label>
-                              <Input
-                                id="publicPlayerName"
-                                type="text"
-                                value={playerName}
-                                onChange={(e) => setPlayerName(e.target.value)}
-                                placeholder="Enter your full name"
-                                required
-                                className="mt-1"
-                              />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="publicPlayerName">Full Name <span className="text-destructive">*</span></Label>
+                                <Input
+                                  id="publicPlayerName"
+                                  type="text"
+                                  value={playerName}
+                                  onChange={(e) => setPlayerName(e.target.value)}
+                                  placeholder="Enter your full name"
+                                  required
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="publicPlayerEmail">Email</Label>
+                                <Input
+                                  id="publicPlayerEmail"
+                                  type="email"
+                                  value={playerEmail}
+                                  onChange={(e) => setPlayerEmail(e.target.value)}
+                                  placeholder="your.email@example.com"
+                                  className="mt-1"
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <Label htmlFor="publicPlayerEmail">Your Email (Optional)</Label>
-                              <Input
-                                id="publicPlayerEmail"
-                                type="email"
-                                value={playerEmail}
-                                onChange={(e) => setPlayerEmail(e.target.value)}
-                                placeholder="your.email@example.com"
-                                className="mt-1"
-                              />
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="gender">Gender</Label>
+                                 <Select value={gender} onValueChange={setGender}>
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="Select gender" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="male">Male</SelectItem>
+                                    <SelectItem value="female">Female</SelectItem>
+                                    <SelectItem value="other">Other</SelectItem>
+                                    <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor="dob">Date of Birth</Label>
+                                <Input
+                                  id="dob"
+                                  type="date"
+                                  value={dob}
+                                  onChange={(e) => setDob(e.target.value)}
+                                  className="mt-1"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                               <div>
+                                <Label htmlFor="organization">Organization/School/College</Label>
+                                <Input
+                                  id="organization"
+                                  type="text"
+                                  value={organization}
+                                  onChange={(e) => setOrganization(e.target.value)}
+                                  placeholder="e.g., City Chess Club"
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="mobile">Mobile Number</Label>
+                                <Input
+                                  id="mobile"
+                                  type="tel"
+                                  value={mobile}
+                                  onChange={(e) => setMobile(e.target.value)}
+                                  placeholder="e.g., +1234567890"
+                                  className="mt-1"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="fideRating">FIDE Rating</Label>
+                                <Input
+                                  id="fideRating"
+                                  type="number"
+                                  value={fideRating}
+                                  onChange={(e) => setFideRating(e.target.value === '' ? '' : Number(e.target.value))}
+                                  placeholder="e.g., 1500 (0 if unrated)"
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="fideId">FIDE ID</Label>
+                                <Input
+                                  id="fideId"
+                                  type="text"
+                                  value={fideId}
+                                  onChange={(e) => setFideId(e.target.value)}
+                                  placeholder="e.g., 1234567 ('-' if none)"
+                                  className="mt-1"
+                                />
+                              </div>
                             </div>
                           </CardContent>
                           <CardFooter>
@@ -209,15 +310,29 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                       <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({registeredPlayers.length})
                     </h2>
                     {isLoadingRegistrations ? (
-                      <Skeleton className="h-20 w-full" />
+                       <div className="space-y-2">
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                        <Skeleton className="h-10 w-full" />
+                      </div>
                     ) : registeredPlayers.length > 0 ? (
                       <Card>
-                        <CardContent className="pt-6"> {/* Add padding top for content */}
-                          <ul className="space-y-2">
+                        <CardContent className="pt-6 max-h-96 overflow-y-auto">
+                          <ul className="space-y-3">
                             {registeredPlayers.map(reg => (
-                              <li key={reg.id} className="flex items-center p-2 bg-muted/50 rounded-md">
-                                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-                                {reg.playerName}
+                              <li key={reg.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
+                                <div className="flex items-center">
+                                  <Users className="w-5 h-5 mr-3 text-muted-foreground flex-shrink-0" />
+                                  <div>
+                                     <span className="font-medium text-foreground">{reg.playerName}</span>
+                                     {reg.fideRating && reg.fideRating > 0 && (
+                                        <Badge variant="secondary" className="ml-2">
+                                          Rating: {reg.fideRating}
+                                        </Badge>
+                                      )}
+                                  </div>
+                                </div>
+                                {/* Optionally show more details or a "View Profile" button if implementing player profiles later */}
                               </li>
                             ))}
                           </ul>
@@ -242,7 +357,7 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
                   </section>
                 </div>
 
-                <aside className="space-y-6 md:sticky md:top-24"> {/* Adjust top based on header height */}
+                <aside className="space-y-6 md:sticky md:top-24">
                   <Card className="shadow-md">
                     <CardHeader>
                       <CardTitle className="text-xl text-primary flex items-center">
@@ -297,4 +412,3 @@ export default function TournamentDetailsPage({ params }: { params: { id: string
     </>
   );
 }
-
