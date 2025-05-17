@@ -3,7 +3,7 @@ import type { Tournament } from '@/types/tournament';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CalendarDays, MapPin, Users, Tag, DollarSign, Trophy, Swords, Info } from 'lucide-react';
+import { CalendarDays, MapPin, Users, Tag, DollarSign, Trophy, Swords, Info, Edit, ListChecks, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
@@ -15,10 +15,10 @@ interface TournamentCardProps {
 export default function TournamentCard({ tournament, onUpdateStatus }: TournamentCardProps) {
   const getStatusVariant = (status: Tournament['status']) => {
     switch (status) {
-      case 'Active': return 'default'; // bg-primary
-      case 'Upcoming': return 'secondary'; // bg-secondary
-      case 'Completed': return 'outline'; // text-foreground
-      case 'Cancelled': return 'destructive'; // bg-destructive
+      case 'Active': return 'default'; 
+      case 'Upcoming': return 'secondary'; 
+      case 'Completed': return 'outline'; 
+      case 'Cancelled': return 'destructive'; 
       default: return 'default';
     }
   };
@@ -62,22 +62,40 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
         </p>
       </CardContent>
       <CardFooter className="border-t pt-4 mt-auto">
-        <div className="flex justify-between w-full items-center">
-          <Button asChild variant="default">
+        <div className="flex flex-col sm:flex-row justify-between w-full items-center gap-2">
+          <Button asChild variant="default" className="w-full sm:w-auto">
             <Link href={`/tournaments/${tournament.id}`}>View Details</Link>
           </Button>
-          {/* Placeholder for admin actions if onUpdateStatus is provided */}
-          {onUpdateStatus && (
-             <div className="flex gap-2">
-                {/* Example admin action - could be a dropdown or more buttons */}
-                {tournament.status === 'Upcoming' && (
-                    <Button variant="outline" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Active')}>Set Active</Button>
-                )}
-                {tournament.status === 'Active' && (
-                    <Button variant="outline" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Completed')}>Set Completed</Button>
-                )}
-             </div>
-          )}
+          
+          <div className="flex gap-2 flex-wrap justify-center sm:justify-end w-full sm:w-auto">
+            {(tournament.status === 'Active' || tournament.status === 'Upcoming') && onUpdateStatus && (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/dashboard/tournaments/${tournament.id}/register`}>
+                  <Users className="mr-1 h-4 w-4" /> Register Player
+                </Link>
+              </Button>
+            )}
+             <Button asChild variant="outline" size="sm">
+                <Link href={`/dashboard/tournaments/${tournament.id}/registrations`}>
+                  <ListChecks className="mr-1 h-4 w-4" /> View Registrations
+                </Link>
+              </Button>
+            {/* Placeholder for admin status actions */}
+            {onUpdateStatus && tournament.status === 'Upcoming' && (
+                <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Active')}>Set Active</Button>
+            )}
+            {onUpdateStatus && tournament.status === 'Active' && (
+                <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Completed')}>Set Completed</Button>
+            )}
+            {/* Add "Publish Results" button for completed tournaments - to be implemented later */}
+            {/* {tournament.status === 'Completed' && (
+              <Button asChild variant="outline" size="sm" disabled>
+                <Link href={`/dashboard/tournaments/${tournament.id}/publish-result`}>
+                 <FileText className="mr-1 h-4 w-4" /> Publish Results
+                </Link>
+              </Button>
+            )} */}
+          </div>
         </div>
       </CardFooter>
     </Card>
