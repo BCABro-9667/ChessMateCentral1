@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, PlusCircle, ListOrdered, Settings } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListOrdered, Newspaper, Settings } from 'lucide-react'; // Added Newspaper
 
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/tournaments/create', label: 'Create Tournament', icon: PlusCircle },
   { href: '/dashboard/tournaments', label: 'My Tournaments', icon: ListOrdered },
+  { href: '/dashboard/publish-news', label: 'Publish News', icon: Newspaper }, // New item
   // { href: '/dashboard/settings', label: 'Settings', icon: Settings }, // Future item
 ];
 
