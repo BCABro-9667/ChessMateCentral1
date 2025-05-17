@@ -1,96 +1,208 @@
+
+// src/app/page.tsx
+"use client";
+
 import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Crown, Users, Zap } from 'lucide-react';
+import { CheckCircle, Crown, Users, Zap, CalendarDays, ListChecks, BarChart3, Newspaper, Settings, ShieldCheck, LogIn, FilePlus2, Edit3, ClipboardList } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useTournaments } from '@/hooks/useTournaments';
+import TournamentCard from '@/components/cards/TournamentCard';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const ServiceItem = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
+  <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 bg-card/50 dark:bg-card/80 h-full">
+    <CardHeader className="items-center text-center">
+      <div className="flex items-center justify-center w-16 h-16 bg-primary text-primary-foreground rounded-full mb-4">
+        <Icon className="w-8 h-8" />
+      </div>
+      <CardTitle className="text-xl">{title}</CardTitle>
+    </CardHeader>
+    <CardContent className="text-center">
+      <CardDescription>{description}</CardDescription>
+    </CardContent>
+  </Card>
+);
+
+const WorkflowStep = ({ icon: Icon, step, title, description }: { icon: React.ElementType, step: number, title: string, description: string }) => (
+ <div className="flex flex-col items-center text-center">
+    <div className="relative mb-4">
+      <div className="flex items-center justify-center w-20 h-20 bg-secondary text-secondary-foreground rounded-full mb-2 border-4 border-primary/20 dark:border-primary/40">
+        <Icon className="w-10 h-10" />
+      </div>
+      <div className="absolute -top-2 -right-2 flex items-center justify-center w-8 h-8 bg-primary text-primary-foreground rounded-full text-sm font-bold">
+        {step}
+      </div>
+    </div>
+    <h3 className="text-lg font-semibold mb-1 text-foreground">{title}</h3>
+    <p className="text-sm text-muted-foreground">{description}</p>
+  </div>
+);
+
 
 export default function HomePage() {
+  const { tournaments, isLoadingTournaments } = useTournaments();
+
+  const upcomingOrActiveTournaments = tournaments
+    .filter(t => t.status === 'Upcoming' || t.status === 'Active')
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    .slice(0, 3);
+  
+  const displayTournaments = upcomingOrActiveTournaments.length > 0 
+    ? upcomingOrActiveTournaments 
+    : tournaments.sort((a,b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()).slice(0,3);
+
+
   return (
     <>
       <Header />
       <main className="flex-grow">
         {/* Hero Section */}
-        <section className="py-20 bg-gradient-to-br from-primary/10 to-accent/10">
+        <section className="py-20 md:py-28 bg-gradient-to-br from-primary/10 to-accent/10 dark:from-primary/20 dark:to-accent/20">
           <div className="container mx-auto px-4 text-center">
-            <Crown className="w-24 h-24 text-primary mx-auto mb-6" />
-            <h1 className="text-5xl font-bold mb-6 text-foreground">
+            <Crown className="w-20 h-20 md:w-24 md:h-24 text-primary mx-auto mb-6" />
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 text-foreground">
               Welcome to Chessmate Central
             </h1>
-            <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-              The ultimate platform for organizing and managing chess tournaments with unparalleled ease and sophistication.
+            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto">
+              Your all-in-one platform for organizing, managing, and participating in chess tournaments with unparalleled ease and sophistication.
             </p>
-            <div className="space-x-4">
-              <Button size="lg" asChild>
-                <Link href="/login">Organizer Login</Link>
+            <div className="space-y-4 sm:space-y-0 sm:space-x-4">
+              <Button size="lg" asChild className="w-full sm:w-auto text-lg px-8 py-3">
+                <Link href="/tournaments">Explore Tournaments</Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/tournaments/example-public-tournament">View Example Tournament</Link>
+              <Button size="lg" variant="outline" asChild className="w-full sm:w-auto text-lg px-8 py-3">
+                <Link href="/login">Organizer Portal</Link>
               </Button>
             </div>
           </div>
         </section>
 
-        {/* Features Section */}
+        {/* Latest Tournaments Section */}
+        {(isLoadingTournaments || displayTournaments.length > 0) && (
         <section className="py-16 bg-background">
           <div className="container mx-auto px-4">
-            <h2 className="text-3xl font-bold text-center mb-12 text-foreground">Why Choose Chessmate Central?</h2>
-            <div className="grid md:grid-cols-3 gap-8">
-              <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardHeader>
-                  <div className="flex items-center justify-center w-12 h-12 bg-primary text-primary-foreground rounded-full mb-4">
-                    <Users className="w-6 h-6" />
-                  </div>
-                  <CardTitle>Effortless Organization</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    Streamline tournament creation, player registration, and results management all in one place.
-                  </CardDescription>
-                </CardContent>
-              </Card>
-              <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardHeader>
-                  <div className="flex items-center justify-center w-12 h-12 bg-primary text-primary-foreground rounded-full mb-4">
-                    <Zap className="w-6 h-6" />
-                  </div>
-                  <CardTitle>AI-Powered Descriptions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    Generate captivating tournament descriptions instantly with our intelligent AI assistant.
-                  </CardDescription>
-                </CardContent>
-              </Card>
-              <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardHeader>
-                  <div className="flex items-center justify-center w-12 h-12 bg-primary text-primary-foreground rounded-full mb-4">
-                    <CheckCircle className="w-6 h-6" />
-                  </div>
-                  <CardTitle>Public Showcase</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <CardDescription>
-                    Beautifully designed public pages to display tournament details and attract participants.
-                  </CardDescription>
-                </CardContent>
-              </Card>
+            <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">
+              Latest Tournaments
+            </h2>
+            {isLoadingTournaments ? (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {[1,2,3].map(i => <Skeleton key={i} className="h-[450px] w-full rounded-lg"/>)}
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {displayTournaments.map(tournament => (
+                  <TournamentCard key={tournament.id} tournament={tournament} />
+                ))}
+              </div>
+            )}
+            <div className="text-center mt-12">
+              <Button size="lg" asChild variant="secondary">
+                <Link href="/tournaments">View All Tournaments</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+        )}
+
+        {/* Our Services Section */}
+        <section className="py-16 bg-secondary/30 dark:bg-secondary/20">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">
+              What We Offer
+            </h2>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <ServiceItem 
+                icon={FilePlus2} 
+                title="Tournament Creation" 
+                description="Easily set up various tournament types (Swiss, Round Robin, etc.) with detailed configurations." 
+              />
+              <ServiceItem 
+                icon={Zap} 
+                title="AI-Powered Content" 
+                description="Generate captivating tournament descriptions and news articles instantly with our intelligent AI assistant." 
+              />
+              <ServiceItem 
+                icon={Users} 
+                title="Player Registration" 
+                description="Streamlined public and organizer-managed player registration with customizable fields." 
+              />
+              <ServiceItem 
+                icon={ListChecks} 
+                title="Standings & Results" 
+                description="Manage live scores, and automatically calculate and display tournament standings for participants." 
+              />
+              <ServiceItem 
+                icon={CalendarDays} 
+                title="Public Tournament Pages" 
+                description="Beautifully designed public pages to showcase tournament details, registered players, and results." 
+              />
+              <ServiceItem 
+                icon={Newspaper} 
+                title="News Publishing" 
+                description="Share updates, articles, and chess news with the community using a rich text editor." 
+              />
             </div>
           </div>
         </section>
         
-        {/* Image section */}
-        <section className="py-16 bg-secondary/50">
+        {/* How It Works Section */}
+        <section className="py-16 bg-background">
+          <div className="container mx-auto px-4">
+            <h2 className="text-3xl md:text-4xl font-bold text-center mb-16 text-foreground">
+              Get Started in 5 Easy Steps
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-10">
+              <WorkflowStep 
+                icon={ShieldCheck} 
+                step={1} 
+                title="Login/Register" 
+                description="Create an organizer account or log in to access your dashboard." 
+              />
+              <WorkflowStep 
+                icon={FilePlus2} 
+                step={2} 
+                title="Create Tournament" 
+                description="Fill in tournament details, set dates, fees, and use AI for a great description." 
+              />
+              <WorkflowStep 
+                icon={Users} 
+                step={3} 
+                title="Manage Players" 
+                description="Register players manually or allow public registration. Keep track of participants." 
+              />
+              <WorkflowStep 
+                icon={ClipboardList} 
+                step={4} 
+                title="Update Results" 
+                description="Enter scores for each round as the tournament progresses. Standings update automatically." 
+              />
+              <WorkflowStep 
+                icon={Newspaper} 
+                step={5} 
+                title="Publish News" 
+                description="Share tournament highlights, announcements, or chess articles with the community." 
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Image section - retained for visual break */}
+        <section className="py-16 bg-secondary/50 dark:bg-secondary/30">
             <div className="container mx-auto px-4 text-center">
-                <h2 className="text-3xl font-bold text-center mb-8 text-foreground">Visualize Your Victory</h2>
-                <Image 
-                    src="https://placehold.co/1200x600.png" 
-                    alt="Chess Tournament"
-                    data-ai-hint="chess game" 
-                    width={1200} 
-                    height={600} 
-                    className="rounded-lg shadow-2xl mx-auto"
-                />
+                <h2 className="text-3xl md:text-4xl font-bold text-center mb-8 text-foreground">Visualize Your Victory</h2>
+                <div className="max-w-4xl mx-auto rounded-lg shadow-2xl overflow-hidden">
+                  <Image 
+                      src="https://placehold.co/1200x600.png" 
+                      alt="Chess Tournament Action"
+                      data-ai-hint="chess tournament action" 
+                      width={1200} 
+                      height={600} 
+                      className="w-full h-auto"
+                  />
+                </div>
             </div>
         </section>
 

@@ -1,14 +1,17 @@
+
 // src/components/layout/Header.tsx
 "use client";
 
 import Link from 'next/link';
-import { Crown, LogIn, LogOut, LayoutDashboard } from 'lucide-react';
+import { Crown, LogIn, LogOut, LayoutDashboard, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthMock } from '@/hooks/useAuthMock';
+import { useTheme } from '@/hooks/useTheme';
 import { usePathname } from 'next/navigation';
 
 export default function Header() {
-  const { isLoggedIn, logout, isLoading } = useAuthMock();
+  const { isLoggedIn, logout, isLoading: isLoadingAuth } = useAuthMock();
+  const { theme, toggleTheme, isDarkMode } = useTheme();
   const pathname = usePathname();
 
   const isDashboardRoute = pathname?.startsWith('/dashboard');
@@ -20,16 +23,24 @@ export default function Header() {
           <Crown className="w-8 h-8" />
           <span className="text-2xl font-bold">Chessmate Central</span>
         </Link>
-        <nav className="flex items-center gap-4">
-          <Button variant="ghost" asChild>
+        <nav className="flex items-center gap-2 sm:gap-4">
+          <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/">Home</Link>
           </Button>
-          {isLoading ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+          {isLoadingAuth ? (
             <Button variant="ghost" disabled>Loading...</Button>
           ) : isLoggedIn ? (
             <>
               {!isDashboardRoute && (
-                 <Button variant="ghost" asChild>
+                 <Button variant="ghost" asChild className="hidden sm:inline-flex">
                     <Link href="/dashboard">
                       <LayoutDashboard className="mr-2 h-4 w-4" /> Dashboard
                     </Link>
@@ -42,7 +53,7 @@ export default function Header() {
           ) : (
             <Button asChild>
               <Link href="/login">
-                <LogIn className="mr-2 h-4 w-4" /> Organizer Login
+                <LogIn className="mr-2 h-4 w-4" /> Login
               </Link>
             </Button>
           )}
