@@ -1,3 +1,4 @@
+
 // This file is machine-generated - edit with care!
 
 'use server';
@@ -18,7 +19,7 @@ const GenerateTournamentDescriptionInputSchema = z.object({
   tournamentType: z.string().describe('The type of chess tournament (e.g., Swiss, Round Robin).'),
   tournamentLocation: z.string().describe('The location of the chess tournament.'),
   tournamentStartDate: z.string().describe('The start date of the chess tournament.'),
-  tournamentEndDate: z.string().describe('The end date of the chess tournament.'),
+  tournamentEndDate: z.string().describe('The end date of defametournament.'),
   entryFee: z.number().describe('The entry fee for the chess tournament.'),
   prizeFund: z.number().describe('The total prize fund for the chess tournament.'),
   timeControl: z.string().describe('The time control for the chess tournament (e.g., 60+5).'),
@@ -47,8 +48,8 @@ const prompt = ai.definePrompt({
   Location: {{{tournamentLocation}}}
   Start Date: {{{tournamentStartDate}}}
   End Date: {{{tournamentEndDate}}}
-  Entry Fee: ${{{{entryFee}}}}
-  Prize Fund: ${{{{prizeFund}}}}
+  Entry Fee: {{{entryFee}}}
+  Prize Fund: {{{prizeFund}}}
   Time Control: {{{timeControl}}}
   `,
 });
@@ -64,3 +65,4 @@ const generateTournamentDescriptionFlow = ai.defineFlow(
     return output!;
   }
 );
+
