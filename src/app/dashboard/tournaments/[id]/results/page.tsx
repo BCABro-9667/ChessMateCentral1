@@ -49,7 +49,7 @@ export default function ManageResultsPage() {
   } = useTournamentResults();
 
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
-  const registeredPlayers = getLocalRegistrations(tournamentId); // Use local cache initially
+  const registeredPlayers = getLocalRegistrations(tournamentId); 
   const playerScores = currentTournamentResult?.playerScores || [];
   
   useEffect(() => {
@@ -67,20 +67,27 @@ export default function ManageResultsPage() {
   }, [tournamentId, fetchRegistrationsByTournamentId, fetchResultsForTournament]);
   
   useEffect(() => {
-    if (tournament && registeredPlayers.length > 0 && tournament.totalRounds && tournament.totalRounds > 0 && !currentTournamentResult) {
-      // Only initialize if currentTournamentResult is null (meaning not yet fetched or created for this session)
-      // and we have the necessary data (tournament, players, rounds).
-      // The API will handle upserting, so this call ensures data is present on the backend.
+    // This effect syncs the tournament results with the current list of registered players
+    // and the tournament's total rounds. It runs when these key pieces of data change.
+    if (tournament && !isLoadingRegistrations && tournament.totalRounds && tournament.totalRounds > 0) {
+      // 'registeredPlayers' is updated when fetchRegistrationsByTournamentId completes.
+      // 'currentTournamentResult' reflects the current state of results (fetched or being managed).
+      // This function will create player score entries for new players, remove old ones,
+      // and adjust roundScore arrays based on current registeredPlayers and totalRounds.
       initializeOrUpdateTournamentResults(tournament.id, registeredPlayers, tournament.totalRounds);
     }
-  }, [tournament, registeredPlayers, currentTournamentResult, initializeOrUpdateTournamentResults]);
+  }, [
+    tournament, 
+    registeredPlayers, 
+    isLoadingRegistrations, 
+    initializeOrUpdateTournamentResults 
+  ]);
 
 
   const handleScoreChange = (playerId: string, roundIndex: number, value: string) => {
     if (!tournament) return;
     const newScore = value === 'null' ? null : parseFloat(value);
     updatePlayerRoundScore(tournament.id, playerId, roundIndex, newScore);
-    // The currentTournamentResult state in the hook will update, triggering re-render
   };
   
   const totalRounds = tournament?.totalRounds || 0;
@@ -185,11 +192,11 @@ export default function ManageResultsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingRegistrations && registeredPlayers.length === 0 ? (
+          {isLoadingRegistrations && registeredPlayers.length === 0 && !errorRegistrations ? (
              <div className="space-y-2"><p>Loading registered players...</p>{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
-          ) : !isLoadingRegistrations && registeredPlayers.length === 0 ? (
+          ) : !isLoadingRegistrations && registeredPlayers.length === 0 && !errorRegistrations ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet. Register players first to manage results.</p>
-          ) : playerScores.length === 0 && !isLoadingSavedResults && totalRounds > 0 && registeredPlayers.length > 0 ? ( 
+          ) : playerScores.length === 0 && !isLoadingSavedResults && totalRounds > 0 && registeredPlayers.length > 0 && !errorResults ? ( 
              <p className="text-muted-foreground text-center py-8">Initializing results table... If this persists, ensure the tournament has rounds defined and players are registered. Results are being fetched or created.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -205,7 +212,7 @@ export default function ManageResultsPage() {
                 </TableHeader>
                 <TableBody>
                   {playerScores.map((ps) => {
-                    const playerReg = registeredPlayers.find(p => p.id === ps.playerId); // Use the more up-to-date registeredPlayers list for display details
+                    const playerReg = registeredPlayers.find(p => p.id === ps.playerId); 
                     return (
                       <TableRow key={ps.playerId}>
                         <TableCell className="font-medium sticky left-0 bg-card z-10">

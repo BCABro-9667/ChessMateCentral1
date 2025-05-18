@@ -33,7 +33,7 @@ export default function TournamentDetailsPage() {
   const { toast } = useToast();
 
   const { 
-    getRegistrationsByTournamentId: getLocalRegistrations, // Keep for immediate UI, but rely on fetch for source of truth
+    getRegistrationsByTournamentId: getLocalRegistrations, 
     fetchRegistrationsByTournamentId,
     addRegistration, 
     isLoadingRegistrations,
@@ -71,8 +71,21 @@ export default function TournamentDetailsPage() {
   }, [tournamentId, fetchRegistrationsByTournamentId, fetchResultsForTournament]);
 
   useEffect(() => {
-    if (currentTournamentResult && currentTournamentResult.tournamentId === tournamentId) {
-      const sortedStandings = [...currentTournamentResult.playerScores].sort((a, b) => {
+    if (currentTournamentResult && currentTournamentResult.tournamentId === tournamentId && tournament) {
+      const currentTotalRounds = tournament.totalRounds || 0;
+
+      const normalizedPlayerScores = currentTournamentResult.playerScores.map(ps => {
+        const newRoundScores = [...(ps.roundScores || [])]; 
+        while (newRoundScores.length < currentTotalRounds) {
+          newRoundScores.push(null);
+        }
+        return {
+          ...ps,
+          roundScores: newRoundScores.slice(0, currentTotalRounds),
+        };
+      });
+
+      const sortedStandings = [...normalizedPlayerScores].sort((a, b) => {
         if (b.totalScore !== a.totalScore) {
           return b.totalScore - a.totalScore;
         }
@@ -85,7 +98,7 @@ export default function TournamentDetailsPage() {
     } else {
       setTournamentStandings([]);
     }
-  }, [currentTournamentResult, tournamentId]);
+  }, [currentTournamentResult, tournamentId, tournament]);
 
 
   if (isLoadingTournamentDetails || tournament === undefined) {
@@ -164,7 +177,6 @@ export default function TournamentDetailsPage() {
       setMobile('');
       setFideRating(0);
       setFideId('-');
-      // fetchRegistrationsByTournamentId(tournamentId); // Already re-fetched by addRegistration
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
@@ -190,13 +202,14 @@ export default function TournamentDetailsPage() {
               <Image 
                 src={coverImageSrc} 
                 alt={`${tournament.name} cover image`} 
-                layout="fill"
-                objectFit="cover"
+                fill
+                style={{objectFit:"cover"}}
                 className="bg-muted"
                 data-ai-hint="chess tournament"
                 onError={(e) => {
-                  e.currentTarget.srcset = `https://placehold.co/1200x400.png`;
-                  e.currentTarget.src = `https://placehold.co/1200x400.png`;
+                  const target = e.target as HTMLImageElement;
+                  target.srcset = `https://placehold.co/1200x400.png`;
+                  target.src = `https://placehold.co/1200x400.png`;
                 }}
               />
               <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
@@ -443,12 +456,12 @@ export default function TournamentDetailsPage() {
                                     <TableRow key={playerScore.playerId}>
                                       <TableCell className="font-medium">{index + 1}</TableCell>
                                       <TableCell>
-                                        {playerScore.playerName}
+                                        {playerScore.playerName || 'N/A'}
                                         {playerScore.fideRating && playerScore.fideRating > 0 ? (
                                           <span className="text-xs text-muted-foreground ml-1">({playerScore.fideRating})</span>
                                         ) : null}
                                       </TableCell>
-                                      {playerScore.roundScores.map((score, roundIdx) => (
+                                      {Array.isArray(playerScore.roundScores) && playerScore.roundScores.map((score, roundIdx) => (
                                         <TableCell key={`player-${playerScore.playerId}-round-${roundIdx}`} className="text-center">
                                           {score !== null ? score.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-'}
                                         </TableCell>
