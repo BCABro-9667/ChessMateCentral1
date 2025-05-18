@@ -25,7 +25,7 @@ export async function GET(
     } else {
       // It's okay if results are not found, means they haven't been created yet.
       // Return an empty structure or a specific "not found" that the frontend can interpret.
-      return NextResponse.json({ tournamentId, playerScores: [] });
+      return NextResponse.json({ tournamentId, playerScores: [] }, { status: 200 }); // Return 200 with empty results
     }
   } catch (error) {
     console.error(`Failed to fetch results for tournament ${params.tournamentId}:`, error);
@@ -58,15 +58,18 @@ export async function POST(
       { upsert: true }
     );
 
-    if (result.modifiedCount > 0 || result.upsertedId) {
-      const savedResult = await resultsCollection.findOne({ tournamentId });
-       if (savedResult) {
-        const { _id, ...rest } = savedResult;
-        return NextResponse.json(rest, { status: 200 }); // OK for update, 201 for new if tracking
+    if (result.acknowledged) { // If MongoDB acknowledged the write operation
+      const currentData = await resultsCollection.findOne({ tournamentId });
+      if (currentData) {
+        const { _id, ...rest } = currentData; // Exclude MongoDB's _id
+        return NextResponse.json(rest, { status: 200 });
+      } else {
+        // This case should be rare if upsert=true was used and operation was acknowledged
+        return NextResponse.json({ message: 'Results not found after save operation' }, { status: 404 });
       }
-      return NextResponse.json({ message: 'Results saved, but failed to retrieve for confirmation.' }, { status: 200 });
     } else {
-      return NextResponse.json({ message: 'Failed to save tournament results' }, { status: 500 });
+      // This means the database did not acknowledge the write operation.
+      return NextResponse.json({ message: 'Database operation failed or was not acknowledged' }, { status: 500 });
     }
   } catch (error) {
     console.error(`Failed to save results for tournament ${params.tournamentId}:`, error);
