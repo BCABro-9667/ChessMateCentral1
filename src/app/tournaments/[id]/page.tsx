@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation'; // Import useParams
 import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon, ListOrdered } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
@@ -24,9 +24,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
-export default function TournamentDetailsPage({ params }: { params: { id: string } }) {
+export default function TournamentDetailsPage() {
+  const params = useParams(); // Use useParams hook
+  const tournamentId = params.id as string; // id will be a string from [id]
+
   const { getTournamentById, isLoadingTournaments } = useTournaments();
-  const tournament = getTournamentById(params.id);
+  const tournament = getTournamentById(tournamentId);
   const { toast } = useToast();
 
   const { 
