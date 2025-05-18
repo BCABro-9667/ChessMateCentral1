@@ -4,7 +4,7 @@
 import Header from '@/components/layout/Header';
 import { useTournaments } from '@/hooks/useTournaments';
 import { usePlayerRegistrations } from '@/hooks/usePlayerRegistrations';
-import { useTournamentResults } from '@/hooks/useTournamentResults'; // Import useTournamentResults
+import { useTournamentResults } from '@/hooks/useTournamentResults';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -12,38 +12,43 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
-import { notFound, useParams } from 'next/navigation'; // Import useParams
+import { notFound, useParams } from 'next/navigation';
 import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon, ListOrdered } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState, useEffect } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
-import type { PlayerScore } from '@/types/tournamentResult'; // Import PlayerScore
+import type { PlayerScore } from '@/types/tournamentResult';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 
 export default function TournamentDetailsPage() {
-  const params = useParams(); // Use useParams hook
-  const tournamentId = params.id as string; // id will be a string from [id]
+  const params = useParams(); 
+  const tournamentId = params.id as string; 
 
-  const { getTournamentById, isLoadingTournaments } = useTournaments();
+  const { getTournamentById, isLoadingTournaments: isLoadingTournamentDetails } = useTournaments();
   const tournament = getTournamentById(tournamentId);
   const { toast } = useToast();
 
   const { 
-    getRegistrationsByTournamentId, 
+    getRegistrationsByTournamentId: getLocalRegistrations, // Keep for immediate UI, but rely on fetch for source of truth
+    fetchRegistrationsByTournamentId,
     addRegistration, 
-    isLoadingRegistrations 
+    isLoadingRegistrations,
+    errorRegistrations
   } = usePlayerRegistrations();
+  const registeredPlayers = getLocalRegistrations(tournamentId);
+
 
   const { 
-    getResultsForTournament, 
-    isLoadingResults: isLoadingSavedResults 
-  } = useTournamentResults(); // Use the hook
+    currentTournamentResult,
+    fetchResultsForTournament,
+    isLoadingResults: isLoadingSavedResults,
+    errorResults
+  } = useTournamentResults(); 
 
-  const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
   const [tournamentStandings, setTournamentStandings] = useState<PlayerScore[]>([]);
 
   // Form state for public registration
@@ -59,34 +64,31 @@ export default function TournamentDetailsPage() {
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
 
   useEffect(() => {
-    if (tournament && !isLoadingRegistrations) {
-      setRegisteredPlayers(getRegistrationsByTournamentId(tournament.id));
+    if (tournamentId) {
+      fetchRegistrationsByTournamentId(tournamentId);
+      fetchResultsForTournament(tournamentId);
     }
-  }, [tournament, isLoadingRegistrations, getRegistrationsByTournamentId, isSubmittingRegistration]);
+  }, [tournamentId, fetchRegistrationsByTournamentId, fetchResultsForTournament]);
 
   useEffect(() => {
-    if (tournament && !isLoadingSavedResults) {
-      const results = getResultsForTournament(tournament.id);
-      if (results && results.playerScores) {
-        const sortedStandings = [...results.playerScores].sort((a, b) => {
-          if (b.totalScore !== a.totalScore) {
-            return b.totalScore - a.totalScore;
-          }
-          // Add tie-breaking logic if needed, e.g., by FIDE rating or name
-          if (b.fideRating && a.fideRating && b.fideRating !== a.fideRating) {
-            return b.fideRating - a.fideRating;
-          }
-          return a.playerName.localeCompare(b.playerName);
-        });
-        setTournamentStandings(sortedStandings);
-      } else {
-        setTournamentStandings([]);
-      }
+    if (currentTournamentResult && currentTournamentResult.tournamentId === tournamentId) {
+      const sortedStandings = [...currentTournamentResult.playerScores].sort((a, b) => {
+        if (b.totalScore !== a.totalScore) {
+          return b.totalScore - a.totalScore;
+        }
+        if (b.fideRating && a.fideRating && b.fideRating !== a.fideRating) {
+          return b.fideRating - a.fideRating;
+        }
+        return a.playerName.localeCompare(b.playerName);
+      });
+      setTournamentStandings(sortedStandings);
+    } else {
+      setTournamentStandings([]);
     }
-  }, [tournament, isLoadingSavedResults, getResultsForTournament]);
+  }, [currentTournamentResult, tournamentId]);
 
 
-  if (isLoadingTournaments || tournament === undefined) {
+  if (isLoadingTournamentDetails || tournament === undefined) {
     return (
        <>
         <Header />
@@ -137,12 +139,12 @@ export default function TournamentDetailsPage() {
 
     setIsSubmittingRegistration(true);
     try {
-      addRegistration({
+      await addRegistration({
         tournamentId: tournament.id,
         tournamentName: tournament.name,
         playerName,
         playerEmail,
-        feePaid: false, // Public registrations default to fee not paid
+        feePaid: false, 
         gender,
         dob,
         organization,
@@ -154,7 +156,6 @@ export default function TournamentDetailsPage() {
         title: "Registration Submitted!",
         description: `Thank you, ${playerName}, for registering for "${tournament.name}". Your registration is pending confirmation by the organizer.`,
       });
-      // Clear form
       setPlayerName('');
       setPlayerEmail('');
       setGender('');
@@ -163,11 +164,12 @@ export default function TournamentDetailsPage() {
       setMobile('');
       setFideRating(0);
       setFideId('-');
+      // fetchRegistrationsByTournamentId(tournamentId); // Already re-fetched by addRegistration
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
         title: "Registration Failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: (error as Error).message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -193,7 +195,6 @@ export default function TournamentDetailsPage() {
                 className="bg-muted"
                 data-ai-hint="chess tournament"
                 onError={(e) => {
-                  // Fallback to placeholder if custom image fails to load
                   e.currentTarget.srcset = `https://placehold.co/1200x400.png`;
                   e.currentTarget.src = `https://placehold.co/1200x400.png`;
                 }}
@@ -336,7 +337,7 @@ export default function TournamentDetailsPage() {
                           </CardContent>
                           <CardFooter>
                             <Button type="submit" disabled={isSubmittingRegistration || isLoadingRegistrations} className="w-full sm:w-auto">
-                              {isSubmittingRegistration ? (
+                              {isSubmittingRegistration || isLoadingRegistrations ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                               ) : null}
                               Submit Registration
@@ -349,15 +350,20 @@ export default function TournamentDetailsPage() {
 
                   <section>
                      <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
-                      <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({registeredPlayers.length})
+                      <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({isLoadingRegistrations ? <Loader2 className="inline w-4 h-4 animate-spin"/> : registeredPlayers.length})
                     </h2>
-                    {isLoadingRegistrations ? (
+                    {isLoadingRegistrations && registeredPlayers.length === 0 ? (
                        <div className="space-y-2">
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-10 w-full" />
                       </div>
-                    ) : registeredPlayers.length > 0 ? (
+                    ) : !isLoadingRegistrations && errorRegistrations ? (
+                      <div className="bg-destructive/10 p-6 rounded-lg text-center text-destructive">
+                          <Users className="w-12 h-12 mx-auto mb-3" />
+                          <p>Error loading registrations: {errorRegistrations}</p>
+                      </div>
+                    ): registeredPlayers.length > 0 ? (
                       <Card>
                         <CardContent className="pt-6 max-h-96 overflow-y-auto">
                           <ul className="space-y-3">
@@ -374,7 +380,6 @@ export default function TournamentDetailsPage() {
                                       )}
                                   </div>
                                 </div>
-                                {/* Optionally show more details or a "View Profile" button if implementing player profiles later */}
                               </li>
                             ))}
                           </ul>
@@ -399,19 +404,25 @@ export default function TournamentDetailsPage() {
                         <Skeleton className="h-10 w-full" />
                       </div>
                     )}
-                    {!isLoadingSavedResults && tournament.status === 'Upcoming' && (
+                    {!isLoadingSavedResults && errorResults && (
+                       <div className="bg-destructive/10 p-6 rounded-lg text-center text-destructive">
+                          <Trophy className="w-12 h-12 mx-auto mb-3" />
+                          <p>Error loading results: {errorResults}</p>
+                      </div>
+                    )}
+                    {!isLoadingSavedResults && !errorResults && tournament.status === 'Upcoming' && (
                        <div className="bg-muted p-6 rounded-lg text-center">
                           <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                           <p className="text-muted-foreground">Results will be published here once the tournament begins and scores are entered.</p>
                       </div>
                     )}
-                    {!isLoadingSavedResults && tournament.status === 'Cancelled' && (
+                    {!isLoadingSavedResults && !errorResults && tournament.status === 'Cancelled' && (
                        <div className="bg-muted p-6 rounded-lg text-center">
                           <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                           <p className="text-muted-foreground">Results are not applicable as this tournament has been cancelled.</p>
                       </div>
                     )}
-                    {!isLoadingSavedResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds > 0 && (
+                    {!isLoadingSavedResults && !errorResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds > 0 && (
                       tournamentStandings.length > 0 ? (
                         <Card>
                           <CardContent className="pt-6">
@@ -459,7 +470,7 @@ export default function TournamentDetailsPage() {
                         </div>
                       )
                     )}
-                     {!isLoadingSavedResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds === 0 && (
+                     {!isLoadingSavedResults && !errorResults && (tournament.status === 'Active' || tournament.status === 'Completed') && totalRounds === 0 && (
                          <div className="bg-muted p-6 rounded-lg text-center">
                             <Trophy className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
                             <p className="text-muted-foreground">Results cannot be displayed as no rounds are defined for this tournament.</p>

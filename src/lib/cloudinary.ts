@@ -1,9 +1,9 @@
 // src/lib/cloudinary.ts
 import { v2 as cloudinary } from 'cloudinary';
 
-const cloudName = process.env.CLOUDINARY_NAME;
-const apiKey = process.env.CLOUDINARY_KEY;
-const apiSecret = process.env.CLOUDINARY_SECRET;
+const cloudName = 'dsugarjot';
+const apiKey = '268684884845363';
+const apiSecret = 'xxb0w2-DT0t9_cDSccW13J4j7lU';
 
 if (!cloudName || !apiKey || !apiSecret) {
   console.warn(

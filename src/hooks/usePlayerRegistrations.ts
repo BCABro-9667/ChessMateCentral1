@@ -4,74 +4,125 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
 
-const REGISTRATIONS_KEY = 'chessmatePlayerRegistrations';
-
 export function usePlayerRegistrations() {
-  const [registrations, setRegistrations] = useState<PlayerRegistration[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [registrationsByTournament, setRegistrationsByTournament] = useState<Record<string, PlayerRegistration[]>>({});
+  const [isLoading, setIsLoading] = useState(false); // General loading for any operation
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchRegistrationsByTournamentId = useCallback(async (tournamentId: string) => {
+    if (!tournamentId) return;
+    setIsLoading(true);
+    setError(null);
     try {
-      const storedRegistrations = localStorage.getItem(REGISTRATIONS_KEY);
-      if (storedRegistrations) {
-        setRegistrations(JSON.parse(storedRegistrations));
-      } else {
-        setRegistrations([]);
+      const response = await fetch(`/api/registrations/by-tournament/${tournamentId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch registrations for tournament ${tournamentId}`);
       }
-    } catch (error) {
-      console.error("Failed to load registrations from localStorage", error);
-      setRegistrations([]);
+      const data: PlayerRegistration[] = await response.json();
+      setRegistrationsByTournament(prev => ({ ...prev, [tournamentId]: data }));
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      setRegistrationsByTournament(prev => ({ ...prev, [tournamentId]: [] })); // Set empty on error for this tournament
     } finally {
       setIsLoading(false);
     }
   }, []);
-
-  const addRegistration = useCallback((registrationData: Omit<PlayerRegistration, 'id' | 'registrationDate'>) => {
-    const newRegistration: PlayerRegistration = {
-      ...registrationData,
-      id: `reg_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`,
-      registrationDate: new Date().toISOString(),
-    };
-    setRegistrations(prevRegistrations => {
-      const updatedRegistrations = [newRegistration, ...prevRegistrations];
-      localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(updatedRegistrations));
-      return updatedRegistrations;
-    });
-    return newRegistration;
-  }, []);
-
+  
   const getRegistrationsByTournamentId = useCallback((tournamentId: string): PlayerRegistration[] => {
-    return registrations.filter(reg => reg.tournamentId === tournamentId).sort((a, b) => new Date(b.registrationDate).getTime() - new Date(a.registrationDate).getTime());
-  }, [registrations]);
+    return registrationsByTournament[tournamentId] || [];
+  }, [registrationsByTournament]);
+
+
+  const addRegistration = useCallback(async (registrationData: Omit<PlayerRegistration, 'id' | 'registrationDate'>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/registrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(registrationData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to add registration');
+      }
+      const newRegistration: PlayerRegistration = await response.json();
+      // Re-fetch registrations for the specific tournament to update the list
+      await fetchRegistrationsByTournamentId(newRegistration.tournamentId);
+      return newRegistration;
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      throw err; // Re-throw for form handling
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchRegistrationsByTournamentId]);
+
+  const updateRegistration = useCallback(async (registrationId: string, updates: Partial<PlayerRegistration>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/registrations/${registrationId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update registration');
+      }
+      const updatedRegistration: PlayerRegistration = await response.json();
+      // Re-fetch registrations for the specific tournament
+      if (updatedRegistration.tournamentId) {
+        await fetchRegistrationsByTournamentId(updatedRegistration.tournamentId);
+      }
+      return updatedRegistration;
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchRegistrationsByTournamentId]);
+
+  const deleteRegistration = useCallback(async (registrationId: string, tournamentId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/registrations/${registrationId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete registration');
+      }
+      // Re-fetch registrations for the specific tournament
+      if (tournamentId) {
+         await fetchRegistrationsByTournamentId(tournamentId);
+      }
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchRegistrationsByTournamentId]);
   
-  const getRegistrationById = useCallback((registrationId: string): PlayerRegistration | undefined => {
-    return registrations.find(reg => reg.id === registrationId);
-  }, [registrations]);
+  // Note: getRegistrationById is less critical now as data is fetched per tournament
+  // If needed, it would require knowing the tournamentId or fetching from a global list (not implemented)
 
-  const updateRegistration = useCallback((registrationId: string, updates: Partial<PlayerRegistration>) => {
-    setRegistrations(prev => {
-        const updated = prev.map(r => r.id === registrationId ? {...r, ...updates} : r);
-        localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(updated));
-        return updated;
-    });
-  }, []);
-  
-  const deleteRegistration = useCallback((registrationId: string) => {
-    setRegistrations(prev => {
-        const updated = prev.filter(r => r.id !== registrationId);
-        localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(updated));
-        return updated;
-    });
-  }, []);
-
-
-  return { 
-    registrations, 
-    addRegistration, 
+  return {
+    registrationsByTournament, // This now holds fetched data per tournament ID
     getRegistrationsByTournamentId,
-    getRegistrationById,
+    fetchRegistrationsByTournamentId, // Expose this for pages to call when tournamentId is known
+    addRegistration,
     updateRegistration,
     deleteRegistration,
-    isLoadingRegistrations: isLoading 
+    isLoadingRegistrations: isLoading,
+    errorRegistrations: error,
   };
 }

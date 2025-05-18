@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, ArrowLeft, PlusCircle, Edit3, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Users, ArrowLeft, PlusCircle, Edit3, Trash2, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Tournament } from '@/types/tournament';
 import type { PlayerRegistration } from '@/types/playerRegistration';
@@ -34,45 +34,65 @@ export default function ViewRegistrationsPage() {
   const tournamentId = params.id as string;
   const { toast } = useToast();
 
-  const { getTournamentById, isLoadingTournaments } = useTournaments();
-  const { getRegistrationsByTournamentId, isLoadingRegistrations, deleteRegistration, updateRegistration } = usePlayerRegistrations();
+  const { getTournamentById, isLoadingTournaments: isLoadingTournamentDetails } = useTournaments();
+  const { 
+    getRegistrationsByTournamentId, 
+    fetchRegistrationsByTournamentId,
+    isLoadingRegistrations, 
+    deleteRegistration, 
+    updateRegistration,
+    errorRegistrations 
+  } = usePlayerRegistrations();
 
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
-  const [registrations, setRegistrations] = useState<PlayerRegistration[]>([]);
+  const currentRegistrations = getRegistrationsByTournamentId(tournamentId);
   
   useEffect(() => {
-    if (!isLoadingTournaments && tournamentId) {
+    if (!isLoadingTournamentDetails && tournamentId) {
       const fetchedTournament = getTournamentById(tournamentId);
       setTournament(fetchedTournament);
     }
-  }, [isLoadingTournaments, tournamentId, getTournamentById]);
+  }, [isLoadingTournamentDetails, tournamentId, getTournamentById]);
 
   useEffect(() => {
-    if (tournamentId && !isLoadingRegistrations) {
-      const fetchedRegistrations = getRegistrationsByTournamentId(tournamentId);
-      setRegistrations(fetchedRegistrations);
+    if (tournamentId) {
+      fetchRegistrationsByTournamentId(tournamentId);
     }
-  }, [tournamentId, isLoadingRegistrations, getRegistrationsByTournamentId, registrations]); // Added registrations to dep array to re-fetch if modified
+  }, [tournamentId, fetchRegistrationsByTournamentId]);
 
-  const handleDeleteRegistration = (regId: string, playerName: string) => {
-    deleteRegistration(regId);
-    toast({
-      title: "Registration Deleted",
-      description: `Registration for ${playerName} has been deleted.`,
-    });
-    // The useEffect for registrations will update the list
+  const handleDeleteRegistration = async (regId: string, playerName: string) => {
+    try {
+      await deleteRegistration(regId, tournamentId);
+      toast({
+        title: "Registration Deleted",
+        description: `Registration for ${playerName} has been deleted.`,
+      });
+    } catch (e) {
+      toast({
+        title: "Error Deleting Registration",
+        description: (e as Error).message || "Could not delete registration.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const toggleFeePaidStatus = (regId: string, currentStatus: boolean) => {
-    updateRegistration(regId, { feePaid: !currentStatus });
-     toast({
-      title: "Payment Status Updated",
-      description: `Fee payment status for the player has been updated.`,
-    });
-    // The useEffect for registrations will update the list
+  const toggleFeePaidStatus = async (regId: string, currentStatus: boolean) => {
+    try {
+      await updateRegistration(regId, { feePaid: !currentStatus });
+      toast({
+        title: "Payment Status Updated",
+        description: `Fee payment status for the player has been updated.`,
+      });
+    } catch (e) {
+       toast({
+        title: "Error Updating Status",
+        description: (e as Error).message || "Could not update payment status.",
+        variant: "destructive",
+      });
+    }
   };
 
-  if (isLoadingTournaments || tournament === undefined || isLoadingRegistrations) {
+  if (isLoadingTournamentDetails || tournament === undefined) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-3/4" />
@@ -92,6 +112,19 @@ export default function ViewRegistrationsPage() {
   if (tournament === null) {
     notFound();
   }
+  
+  if (errorRegistrations) {
+    return (
+      <div className="space-y-6 text-center text-destructive">
+        <h1 className="text-2xl font-bold">Error Loading Registrations</h1>
+        <p>{errorRegistrations}</p>
+         <Button variant="outline" asChild>
+            <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Link>
+          </Button>
+      </div>
+    )
+  }
+
 
   return (
     <div className="space-y-6">
@@ -116,13 +149,17 @@ export default function ViewRegistrationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Player List ({registrations.length})</CardTitle>
+          <CardTitle>Player List ({isLoadingRegistrations ? <Loader2 className="inline w-4 h-4 animate-spin"/> : currentRegistrations.length})</CardTitle>
           <CardDescription>
             Manage and view players registered for &quot;{tournament?.name}&quot;.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {registrations.length === 0 ? (
+          {isLoadingRegistrations && currentRegistrations.length === 0 ? (
+            <div className="space-y-2">
+              {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+            </div>
+          ) : !isLoadingRegistrations && currentRegistrations.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -137,7 +174,7 @@ export default function ViewRegistrationsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {registrations.map((reg) => (
+                  {currentRegistrations.map((reg) => (
                     <TableRow key={reg.id}>
                       <TableCell className="font-medium">{reg.playerName}</TableCell>
                       <TableCell>{reg.playerEmail || 'N/A'}</TableCell>
@@ -148,7 +185,9 @@ export default function ViewRegistrationsPage() {
                           size="sm" 
                           onClick={() => toggleFeePaidStatus(reg.id, reg.feePaid)}
                           className={reg.feePaid ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}
+                          disabled={isLoadingRegistrations}
                         >
+                          {isLoadingRegistrations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           {reg.feePaid ? 
                             <CheckCircle className="w-5 h-5 mr-1" /> : 
                             <XCircle className="w-5 h-5 mr-1" />
@@ -157,12 +196,9 @@ export default function ViewRegistrationsPage() {
                         </Button>
                       </TableCell>
                       <TableCell className="text-right">
-                        {/* <Button variant="ghost" size="icon" className="mr-2" title="Edit Registration (coming soon)" disabled>
-                          <Edit3 className="h-4 w-4" />
-                        </Button> */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" title="Delete Registration" className="text-destructive hover:text-destructive/80">
+                            <Button variant="ghost" size="icon" title="Delete Registration" className="text-destructive hover:text-destructive/80" disabled={isLoadingRegistrations}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>

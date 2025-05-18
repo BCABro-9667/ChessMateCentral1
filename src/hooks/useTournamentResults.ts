@@ -5,106 +5,128 @@ import { useState, useEffect, useCallback } from 'react';
 import type { TournamentResult, PlayerScore } from '@/types/tournamentResult';
 import type { PlayerRegistration } from '@/types/playerRegistration';
 
-const RESULTS_KEY_PREFIX = 'chessmateTournamentResults_'; // Prefix to avoid conflicts
-
 export function useTournamentResults() {
-  const [tournamentResults, setTournamentResults] = useState<TournamentResult[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [currentTournamentResult, setCurrentTournamentResult] = useState<TournamentResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load all results from localStorage on mount
-  useEffect(() => {
-    setIsLoading(true);
-    const loadedResults: TournamentResult[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(RESULTS_KEY_PREFIX)) {
-        const item = localStorage.getItem(key);
-        if (item) {
-          try {
-            loadedResults.push(JSON.parse(item));
-          } catch (error) {
-            console.error(`Failed to parse tournament result from localStorage key ${key}:`, error);
-          }
-        }
-      }
+  const fetchResultsForTournament = useCallback(async (tournamentId: string) => {
+    if (!tournamentId) {
+      setCurrentTournamentResult(null);
+      return;
     }
-    setTournamentResults(loadedResults);
-    setIsLoading(false);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/results/${tournamentId}`);
+      if (!response.ok) {
+        if (response.status === 404) { // Or if API returns specific structure for no results
+             setCurrentTournamentResult({ tournamentId, playerScores: [] }); // Treat as empty results
+             return;
+        }
+        throw new Error(`Failed to fetch results for tournament ${tournamentId}`);
+      }
+      const data: TournamentResult = await response.json();
+      setCurrentTournamentResult(data);
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      setCurrentTournamentResult({ tournamentId, playerScores: [] }); // Fallback to empty on error
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
-
-  const getResultsForTournament = useCallback((tournamentId: string): TournamentResult | undefined => {
-    return tournamentResults.find(tr => tr.tournamentId === tournamentId);
-  }, [tournamentResults]);
+  
+  const getResultsForTournament = useCallback((): TournamentResult | undefined => {
+    // Returns the currently fetched/managed tournament result.
+    // Ensure the tournamentId matches if you are managing multiple results elsewhere,
+    // but for this hook's design, it focuses on one tournament's results at a time.
+    return currentTournamentResult || undefined;
+  }, [currentTournamentResult]);
 
   const calculateTotalScore = (roundScores: (number | null)[]): number => {
     return roundScores.reduce((acc: number, score: number | null) => acc + (score || 0), 0);
   };
 
+  const saveTournamentResults = useCallback(async (tournamentResultData: TournamentResult) => {
+    if (!tournamentResultData.tournamentId) {
+      setError("Tournament ID is missing for saving results.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/results/${tournamentResultData.tournamentId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tournamentResultData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save tournament results');
+      }
+      const savedData: TournamentResult = await response.json();
+      setCurrentTournamentResult(savedData); // Update local state with saved data (potentially with _id from DB)
+    } catch (err) {
+      console.error(err);
+      setError((err as Error).message);
+      throw err; // Re-throw for form handling
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+
   const initializeOrUpdateTournamentResults = useCallback((
     tournamentId: string,
     registeredPlayers: PlayerRegistration[],
     totalRounds: number
-  ): void => { // Return type is void
+  ): void => {
     
-    setTournamentResults(prevResults => {
-      let existingTournamentResult = prevResults.find(tr => tr.tournamentId === tournamentId);
+    setCurrentTournamentResult(prevResult => {
+      let baseResult = prevResult && prevResult.tournamentId === tournamentId 
+                        ? { ...prevResult } 
+                        : { tournamentId, playerScores: [] };
+      
       let updatedPlayerScores: PlayerScore[];
 
-      if (existingTournamentResult) {
-        // Update existing: add new players, remove players no longer registered, ensure roundScores length matches
-        const registeredPlayerIds = new Set(registeredPlayers.map(p => p.id));
-        
-        updatedPlayerScores = existingTournamentResult.playerScores
-          .filter(ps => registeredPlayerIds.has(ps.playerId)) // Keep only currently registered players
-          .map(ps => { // Ensure existing players have correct number of rounds and updated info
-            const playerRegInfo = registeredPlayers.find(p => p.id === ps.playerId);
-            const newRoundScores = [...ps.roundScores];
-            while (newRoundScores.length < totalRounds) {
-              newRoundScores.push(null);
-            }
-            // Truncate if totalRounds decreased
-            const finalRoundScores = newRoundScores.slice(0, totalRounds); 
-            return {
-              ...ps,
-              playerName: playerRegInfo ? playerRegInfo.playerName : ps.playerName, // Update name if changed
-              fideRating: playerRegInfo ? playerRegInfo.fideRating : ps.fideRating, // Update rating if changed
-              roundScores: finalRoundScores, 
-              totalScore: calculateTotalScore(finalRoundScores)
-            };
-          });
-
-        // Add new players
-        registeredPlayers.forEach(player => {
-          if (!updatedPlayerScores.find(ps => ps.playerId === player.id)) {
-            updatedPlayerScores.push({
-              playerId: player.id,
-              playerName: player.playerName,
-              fideRating: player.fideRating,
-              roundScores: Array(totalRounds).fill(null),
-              totalScore: 0,
-            });
-          }
-        });
-        
-        existingTournamentResult = { ...existingTournamentResult, playerScores: updatedPlayerScores };
-
-      } else {
-        // Initialize new
-        updatedPlayerScores = registeredPlayers.map(player => ({
-          playerId: player.id,
-          playerName: player.playerName,
-          fideRating: player.fideRating,
-          roundScores: Array(totalRounds).fill(null),
-          totalScore: 0,
-        }));
-        existingTournamentResult = { tournamentId, playerScores: updatedPlayerScores };
-      }
+      const registeredPlayerIds = new Set(registeredPlayers.map(p => p.id));
       
-      const newResultsList = prevResults.filter(tr => tr.tournamentId !== tournamentId).concat(existingTournamentResult);
-      localStorage.setItem(`${RESULTS_KEY_PREFIX}${tournamentId}`, JSON.stringify(existingTournamentResult));
-      return newResultsList;
+      updatedPlayerScores = baseResult.playerScores
+        .filter(ps => registeredPlayerIds.has(ps.playerId))
+        .map(ps => {
+          const playerRegInfo = registeredPlayers.find(p => p.id === ps.playerId);
+          const newRoundScores = [...ps.roundScores];
+          while (newRoundScores.length < totalRounds) {
+            newRoundScores.push(null);
+          }
+          const finalRoundScores = newRoundScores.slice(0, totalRounds);
+          return {
+            ...ps,
+            playerName: playerRegInfo ? playerRegInfo.playerName : ps.playerName,
+            fideRating: playerRegInfo ? playerRegInfo.fideRating : ps.fideRating,
+            roundScores: finalRoundScores,
+            totalScore: calculateTotalScore(finalRoundScores)
+          };
+        });
+
+      registeredPlayers.forEach(player => {
+        if (!updatedPlayerScores.find(ps => ps.playerId === player.id)) {
+          updatedPlayerScores.push({
+            playerId: player.id,
+            playerName: player.playerName,
+            fideRating: player.fideRating,
+            roundScores: Array(totalRounds).fill(null),
+            totalScore: 0,
+          });
+        }
+      });
+      
+      const newTournamentResult = { ...baseResult, playerScores: updatedPlayerScores };
+      saveTournamentResults(newTournamentResult); // Automatically save after initializing/updating
+      return newTournamentResult;
     });
-  }, []); // Empty dependency array: function identity is stable
+  }, [saveTournamentResults]);
 
 
   const updatePlayerRoundScore = useCallback((
@@ -113,48 +135,45 @@ export function useTournamentResults() {
     roundIndex: number, // 0-based index
     score: number | null
   ) => {
-    setTournamentResults(prevResults => {
-      const tournamentResultIndex = prevResults.findIndex(tr => tr.tournamentId === tournamentId);
-      if (tournamentResultIndex === -1) {
-        console.warn("Tournament result not found for update, should have been initialized.", tournamentId);
-        return prevResults;
+    setCurrentTournamentResult(prevResult => {
+      if (!prevResult || prevResult.tournamentId !== tournamentId) {
+        console.warn("No current result for this tournament ID, or mismatch. Cannot update score.");
+        return prevResult;
       }
 
-      const updatedTournamentResult = { ...prevResults[tournamentResultIndex] };
-      const playerScoresIndex = updatedTournamentResult.playerScores.findIndex(ps => ps.playerId === playerId);
+      const playerScoresIndex = prevResult.playerScores.findIndex(ps => ps.playerId === playerId);
       
       if (playerScoresIndex === -1) {
         console.warn("Player score not found for update.", playerId, "in tournament", tournamentId);
-        return prevResults;
+        return prevResult;
       }
 
-      const updatedPlayerScoreItem = { ...updatedTournamentResult.playerScores[playerScoresIndex] };
-      updatedPlayerScoreItem.roundScores = [...updatedPlayerScoreItem.roundScores]; // Ensure new array
+      const updatedPlayerScores = [...prevResult.playerScores];
+      const updatedPlayerScoreItem = { ...updatedPlayerScores[playerScoresIndex] };
+      updatedPlayerScoreItem.roundScores = [...updatedPlayerScoreItem.roundScores]; 
       
       if (roundIndex >= 0 && roundIndex < updatedPlayerScoreItem.roundScores.length) {
         updatedPlayerScoreItem.roundScores[roundIndex] = score;
         updatedPlayerScoreItem.totalScore = calculateTotalScore(updatedPlayerScoreItem.roundScores);
-
-        updatedTournamentResult.playerScores = [
-          ...updatedTournamentResult.playerScores.slice(0, playerScoresIndex),
-          updatedPlayerScoreItem,
-          ...updatedTournamentResult.playerScores.slice(playerScoresIndex + 1),
-        ];
+        updatedPlayerScores[playerScoresIndex] = updatedPlayerScoreItem;
         
-        const newResultsList = [...prevResults];
-        newResultsList[tournamentResultIndex] = updatedTournamentResult;
-        localStorage.setItem(`${RESULTS_KEY_PREFIX}${tournamentId}`, JSON.stringify(updatedTournamentResult));
-        return newResultsList;
+        const newTournamentResult = { ...prevResult, playerScores: updatedPlayerScores };
+        saveTournamentResults(newTournamentResult); // Save the entire updated result set
+        return newTournamentResult;
       }
       console.warn("Round index out of bounds for update.", roundIndex, "player", playerId);
-      return prevResults; // No change if roundIndex is out of bounds
+      return prevResult;
     });
-  }, []); // Empty dependency array: function identity is stable
+  }, [saveTournamentResults]);
   
   return {
     isLoadingResults: isLoading,
-    getResultsForTournament,
+    currentTournamentResult,
+    errorResults: error,
+    fetchResultsForTournament,
+    getResultsForTournament, // Kept for compatibility if some components expect direct sync return
     initializeOrUpdateTournamentResults,
     updatePlayerRoundScore,
+    // saveTournamentResults is used internally by initialize and updatePlayerRoundScore but can be exposed if needed
   };
 }

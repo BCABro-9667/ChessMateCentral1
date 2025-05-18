@@ -1,11 +1,13 @@
 // src/lib/mongodb.ts
-import { MongoClient, ServerApiVersion, Db, Collection } from 'mongodb';
+import { MongoClient, ServerApiVersion, Db, Collection, WithId, Document } from 'mongodb';
 import type { Tournament } from '@/types/tournament';
+import type { PlayerRegistration } from '@/types/playerRegistration';
+import type { TournamentResult } from '@/types/tournamentResult';
 
 const uri = process.env.MONGO_URI;
 
 if (!uri) {
-  throw new Error('Please define the MONGO_URI environment variable inside .env.local');
+  throw new Error('Please define the MONGO_URI environment variable inside .env.local or your deployment environment.');
 }
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -25,18 +27,22 @@ export async function connectToDatabase(): Promise<Db> {
   }
   try {
     await client.connect();
-    // The MONGO_URI usually includes the database name if it's like /your_db_name?retryWrites...
-    // If your URI doesn't specify a db name, or you want to be explicit:
-    // db = client.db("your_database_name_here"); // e.g., client.db("chessMateCentral") or client.db("blog") as per your URI
-    // For now, letting the URI handle the DB selection. If it's just the cluster URI, you MUST specify db name.
-    // The URI provided is "mongodb+srv://Avdhesh1:ya4XYnQUEtYhv5kr@cluster0.0uojesi.mongodb.net/blog"
-    // So, the database name is 'blog'.
-    db = client.db("blog"); 
-    console.log("Successfully connected to MongoDB and database: blog");
+    // The MONGO_URI structure is: mongodb+srv://<username>:<password>@<cluster-url>/<databaseName>?<options>
+    // We will use the database name specified in the URI.
+    // If no database name is in the URI, client.db() without arguments uses the default 'test' db.
+    // It's better practice to ensure your URI includes the database name.
+    // Example: mongodb+srv://user:pass@host/myDatabase
+    // If MONGO_URI is "mongodb+srv://Avdhesh1:ya4XYnQUEtYhv5kr@cluster0.0uojesi.mongodb.net/blog"
+    // then the database name is 'blog'.
+    // If your MONGO_URI doesn't specify a database, you must pass it to client.db() here.
+    // For this project, assuming 'blog' is in the URI or is the desired default.
+    const dbNameFromUri = new URL(uri.startsWith('mongodb+srv') ? uri.replace('mongodb+srv','mongodb') : uri).pathname.substring(1);
+    db = client.db(dbNameFromUri || 'blog'); // Fallback to 'blog' if not in URI path
+    console.log(`Successfully connected to MongoDB and database: ${db.databaseName}`);
     return db;
   } catch (e) {
     console.error("Failed to connect to MongoDB", e);
-    throw e; // Rethrow or handle as appropriate for your application
+    throw e;
   }
 }
 
@@ -45,13 +51,14 @@ export async function getTournamentsCollection(): Promise<Collection<Tournament>
   return database.collection<Tournament>('tournaments');
 }
 
-// You can add more collection getters here, e.g., for playerRegistrations, news, etc.
-// export async function getPlayerRegistrationsCollection(): Promise<Collection<PlayerRegistration>> {
-//   const database = await connectToDatabase();
-//   return database.collection<PlayerRegistration>('playerRegistrations');
-// }
+export async function getPlayerRegistrationsCollection(): Promise<Collection<PlayerRegistration>> {
+  const database = await connectToDatabase();
+  // MongoDB stores documents, not the exact PlayerRegistration type which might have client-side 'id'.
+  // We'll handle the _id vs id mapping in the API routes.
+  return database.collection<Document & Omit<PlayerRegistration, 'id'>>('playerRegistrations') as Collection<PlayerRegistration>;
+}
 
-// Note: It's good practice to ensure the client eventually closes,
-// but for serverless functions (like Next.js API routes),
-// the connection is often managed per request or kept warm.
-// For long-running apps, you'd handle client.close() on shutdown.
+export async function getTournamentResultsCollection(): Promise<Collection<TournamentResult>> {
+  const database = await connectToDatabase();
+  return database.collection<Document & TournamentResult>('tournamentResults') as Collection<TournamentResult>;
+}

@@ -22,7 +22,7 @@ const scoreOptions = [
   { label: 'Win (1)', value: '1' },
   { label: 'Draw (0.5)', value: '0.5' },
   { label: 'Loss (0)', value: '0' },
-  { label: 'Not Played (-)', value: 'null' }, // Use string 'null' for select value
+  { label: 'Not Played (-)', value: 'null' },
 ];
 
 export default function ManageResultsPage() {
@@ -31,73 +31,61 @@ export default function ManageResultsPage() {
   const tournamentId = params.id as string;
   const { toast } = useToast();
 
-  const { getTournamentById, isLoadingTournaments } = useTournaments();
-  const { getRegistrationsByTournamentId, isLoadingRegistrations } = usePlayerRegistrations();
+  const { getTournamentById, isLoadingTournaments: isLoadingTournamentDetails } = useTournaments();
+  const { 
+    getRegistrationsByTournamentId: getLocalRegistrations, 
+    fetchRegistrationsByTournamentId, 
+    isLoadingRegistrations,
+    errorRegistrations
+  } = usePlayerRegistrations();
+  
   const { 
     isLoadingResults: isLoadingSavedResults, 
+    currentTournamentResult,
+    fetchResultsForTournament,
     initializeOrUpdateTournamentResults, 
     updatePlayerRoundScore,
-    getResultsForTournament
+    errorResults
   } = useTournamentResults();
 
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
-  const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRegistration[]>([]);
-  const [playerScores, setPlayerScores] = useState<PlayerScore[]>([]);
+  const registeredPlayers = getLocalRegistrations(tournamentId); // Use local cache initially
+  const playerScores = currentTournamentResult?.playerScores || [];
   
   useEffect(() => {
-    if (tournamentId && !isLoadingTournaments) {
+    if (tournamentId && !isLoadingTournamentDetails) {
       const fetchedTournament = getTournamentById(tournamentId);
       setTournament(fetchedTournament);
     }
-  }, [isLoadingTournaments, tournamentId, getTournamentById]);
+  }, [isLoadingTournamentDetails, tournamentId, getTournamentById]);
 
   useEffect(() => {
-    if (tournamentId && !isLoadingRegistrations) {
-      const fetchedRegistrations = getRegistrationsByTournamentId(tournamentId);
-      setRegisteredPlayers(fetchedRegistrations);
+    if (tournamentId) {
+      fetchRegistrationsByTournamentId(tournamentId);
+      fetchResultsForTournament(tournamentId);
     }
-  }, [isLoadingRegistrations, tournamentId, getRegistrationsByTournamentId]);
-
-  // Effect 1: Ensure results are initialized in the hook/localStorage
+  }, [tournamentId, fetchRegistrationsByTournamentId, fetchResultsForTournament]);
+  
   useEffect(() => {
-    if (tournament && registeredPlayers.length > 0 && tournament.totalRounds && tournament.totalRounds > 0) {
+    if (tournament && registeredPlayers.length > 0 && tournament.totalRounds && tournament.totalRounds > 0 && !currentTournamentResult) {
+      // Only initialize if currentTournamentResult is null (meaning not yet fetched or created for this session)
+      // and we have the necessary data (tournament, players, rounds).
+      // The API will handle upserting, so this call ensures data is present on the backend.
       initializeOrUpdateTournamentResults(tournament.id, registeredPlayers, tournament.totalRounds);
     }
-  }, [tournament, registeredPlayers, initializeOrUpdateTournamentResults]);
-
-  // Effect 2: Populate local playerScores state from the hook
-  useEffect(() => {
-    if (tournament && !isLoadingSavedResults) { 
-      const currentTournamentData = getResultsForTournament(tournament.id);
-      if (currentTournamentData && currentTournamentData.playerScores) {
-        const sortedScores = [...currentTournamentData.playerScores].sort((a, b) => {
-            const playerAIndex = registeredPlayers.findIndex(p => p.id === a.playerId);
-            const playerBIndex = registeredPlayers.findIndex(p => p.id === b.playerId);
-            if (playerAIndex === -1 && playerBIndex === -1) return 0;
-            if (playerAIndex === -1) return 1;
-            if (playerBIndex === -1) return -1;
-            return playerAIndex - playerBIndex;
-        });
-        setPlayerScores(sortedScores);
-      } else if (tournament.totalRounds && tournament.totalRounds > 0 && registeredPlayers.length > 0) {
-        setPlayerScores([]); // Expecting data soon if initialized
-      } else {
-        setPlayerScores([]); // No rounds or no players
-      }
-    }
-  }, [isLoadingSavedResults, getResultsForTournament, tournament, registeredPlayers]);
+  }, [tournament, registeredPlayers, currentTournamentResult, initializeOrUpdateTournamentResults]);
 
 
   const handleScoreChange = (playerId: string, roundIndex: number, value: string) => {
     if (!tournament) return;
     const newScore = value === 'null' ? null : parseFloat(value);
     updatePlayerRoundScore(tournament.id, playerId, roundIndex, newScore);
-    // playerScores state will update via Effect 2 listening to getResultsForTournament
+    // The currentTournamentResult state in the hook will update, triggering re-render
   };
   
   const totalRounds = tournament?.totalRounds || 0;
 
-  if (isLoadingTournaments || tournament === undefined || isLoadingRegistrations || (isLoadingSavedResults && playerScores.length === 0 && registeredPlayers.length > 0 && totalRounds > 0) ) {
+  if (isLoadingTournamentDetails || tournament === undefined || (isLoadingRegistrations && registeredPlayers.length ===0) ) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-10 w-3/4" />
@@ -106,7 +94,7 @@ export default function ManageResultsPage() {
           <CardHeader><Skeleton className="h-6 w-1/4" /></CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <Skeleton className="h-12 w-full mb-2" /> {/* Header row */}
+              <Skeleton className="h-12 w-full mb-2" />
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-12 w-full mb-1" />)}
             </div>
           </CardContent>
@@ -117,6 +105,21 @@ export default function ManageResultsPage() {
 
   if (tournament === null) {
     notFound();
+  }
+
+  if (errorRegistrations || errorResults) {
+     return (
+      <div className="space-y-6 text-center text-destructive">
+        <h1 className="text-2xl font-bold">Error Loading Data</h1>
+        {errorRegistrations && <p>Registrations Error: {errorRegistrations}</p>}
+        {errorResults && <p>Results Error: {errorResults}</p>}
+         <Button asChild variant="outline">
+          <Link href={`/dashboard`}>
+            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+          </Link>
+        </Button>
+      </div>
+    );
   }
   
   if (tournament && tournament.status === 'Cancelled') {
@@ -175,17 +178,19 @@ export default function ManageResultsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Enter Scores</CardTitle>
+          <CardTitle>Enter Scores {isLoadingSavedResults && <Loader2 className="inline w-5 h-5 animate-spin ml-2" />}</CardTitle>
           <CardDescription>
             Update scores for each player per round. Total rounds: {totalRounds}.
-            Changes are saved automatically.
+            Changes are saved automatically to the backend.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {registeredPlayers.length === 0 ? (
+          {isLoadingRegistrations && registeredPlayers.length === 0 ? (
+             <div className="space-y-2"><p>Loading registered players...</p>{[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          ) : !isLoadingRegistrations && registeredPlayers.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet. Register players first to manage results.</p>
-          ) : playerScores.length === 0 && !isLoadingSavedResults && totalRounds > 0 ? ( 
-             <p className="text-muted-foreground text-center py-8">Initializing results table... If this persists, ensure the tournament has rounds defined and players are registered.</p>
+          ) : playerScores.length === 0 && !isLoadingSavedResults && totalRounds > 0 && registeredPlayers.length > 0 ? ( 
+             <p className="text-muted-foreground text-center py-8">Initializing results table... If this persists, ensure the tournament has rounds defined and players are registered. Results are being fetched or created.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -200,13 +205,15 @@ export default function ManageResultsPage() {
                 </TableHeader>
                 <TableBody>
                   {playerScores.map((ps) => {
-                    const playerReg = registeredPlayers.find(p => p.id === ps.playerId);
+                    const playerReg = registeredPlayers.find(p => p.id === ps.playerId); // Use the more up-to-date registeredPlayers list for display details
                     return (
                       <TableRow key={ps.playerId}>
                         <TableCell className="font-medium sticky left-0 bg-card z-10">
-                          {ps.playerName || 'Unknown Player'}
+                          {playerReg?.playerName || ps.playerName || 'Unknown Player'}
                           {playerReg?.fideRating && playerReg.fideRating > 0 ? (
                             <span className="text-xs text-muted-foreground ml-1">({playerReg.fideRating})</span>
+                          ) : ps.fideRating && ps.fideRating > 0 ? (
+                             <span className="text-xs text-muted-foreground ml-1">({ps.fideRating})</span>
                           ) : null}
                         </TableCell>
                         {ps.roundScores && ps.roundScores.length === totalRounds ? ps.roundScores.map((score, roundIdx) => (
@@ -214,7 +221,7 @@ export default function ManageResultsPage() {
                             <Select
                               value={score === null ? 'null' : String(score)}
                               onValueChange={(value) => handleScoreChange(ps.playerId, roundIdx, value)}
-                              disabled={tournament?.status === 'Completed' || tournament?.status === 'Cancelled'}
+                              disabled={tournament?.status === 'Completed' || tournament?.status === 'Cancelled' || isLoadingSavedResults}
                             >
                               <SelectTrigger className="w-[100px] h-9 mx-auto">
                                 <SelectValue placeholder="Score" />
@@ -227,7 +234,6 @@ export default function ManageResultsPage() {
                             </Select>
                           </TableCell>
                         )) : (
-                          // Fill with empty cells if roundScores is not ready or mismatched length
                           [...Array(totalRounds)].map((_, roundIdx) => (
                             <TableCell key={`empty-score-${ps.playerId}-${roundIdx}`} className="text-center">
                               <Select disabled>
@@ -251,4 +257,3 @@ export default function ManageResultsPage() {
     </div>
   );
 }
-
