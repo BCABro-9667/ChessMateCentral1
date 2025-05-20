@@ -3,6 +3,7 @@ import { MongoClient, ServerApiVersion, Db, Collection, WithId, Document } from 
 import type { Tournament } from '@/types/tournament';
 import type { PlayerRegistration } from '@/types/playerRegistration';
 import type { TournamentResult } from '@/types/tournamentResult';
+import type { BlogPost } from '@/types/blog';
 
 const uri = process.env.MONGO_URI;
 
@@ -61,4 +62,10 @@ export async function getPlayerRegistrationsCollection(): Promise<Collection<Pla
 export async function getTournamentResultsCollection(): Promise<Collection<TournamentResult>> {
   const database = await connectToDatabase();
   return database.collection<Document & TournamentResult>('tournamentResults') as Collection<TournamentResult>;
+}
+
+export async function getBlogPostsCollection(): Promise<Collection<BlogPost>> {
+  const database = await connectToDatabase();
+  // MongoDB stores documents. We'll map _id to id in API routes.
+  return database.collection<Document & Omit<BlogPost, 'id'>>('blogPosts') as Collection<BlogPost>;
 }

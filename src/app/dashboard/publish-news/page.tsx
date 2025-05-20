@@ -1,21 +1,52 @@
 // src/app/dashboard/publish-news/page.tsx
 "use client";
 
-import { useState, useRef } from "react";
-import { Newspaper, Send, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect, useCallback }from "react";
+import { Newspaper, Send, Loader2, ImageIcon, TagsIcon, Type, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import RichTextEditor from "@/components/forms/RichTextEditor";
 import type { Editor as TinyMCEEditor } from "tinymce";
+import { blogCategories, type BlogCategory, type NewBlogPost } from "@/types/blog";
+import { useBlogPosts } from "@/hooks/useBlogPosts";
+import { useRouter } from "next/navigation";
+
+const generateSlug = (title: string): string => {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // remove non-word characters, except spaces and hyphens
+    .replace(/\s+/g, '-')    // replace spaces with hyphens
+    .replace(/-+/g, '-');   // replace multiple hyphens with a single hyphen
+};
 
 export default function PublishNewsPage() {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const editorRef = useRef<TinyMCEEditor | null>(null);
+  const router = useRouter();
+  const { addBlogPost, isLoadingBlogPosts } = useBlogPosts();
   const { toast } = useToast();
+  
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [category, setCategory] = useState<BlogCategory | "">("");
+  const [tags, setTags] = useState(""); // Comma-separated string
+  const [content, setContent] = useState("");
+  
+  const editorRef = useRef<TinyMCEEditor | null>(null);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    setTitle(newTitle);
+    setSlug(generateSlug(newTitle));
+  };
+
+  const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSlug(generateSlug(e.target.value)); // Still process it to ensure it's URL-friendly
+  };
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
@@ -23,68 +54,69 @@ export default function PublishNewsPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setIsLoading(true);
 
-    if (!title.trim()) {
+    if (!title.trim() || !slug.trim() || !category || !content.trim()) {
       toast({
-        title: "Title Missing",
-        description: "Please enter a title for your news/blog post.",
+        title: "Missing Required Fields",
+        description: "Please fill in Title, Slug, Category, and Content.",
         variant: "destructive",
       });
-      setIsLoading(false);
       return;
     }
 
-    if (!content.trim() || content === "<p><br></p>") { // TinyMCE might add empty p tags
+    const postData: NewBlogPost = {
+      title,
+      slug,
+      imageUrl: imageUrl.trim() || undefined,
+      category: category as BlogCategory, // Cast because we validate it's not empty
+      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag), // Convert to array
+      content,
+    };
+
+    try {
+      const newPost = await addBlogPost(postData);
       toast({
-        title: "Content Missing",
-        description: "Please write some content for your news/blog post.",
+        title: "Blog Post Published!",
+        description: `"${newPost.title}" has been successfully published.`,
+      });
+      // Clear form
+      setTitle("");
+      setSlug("");
+      setImageUrl("");
+      setCategory("");
+      setTags("");
+      if (editorRef.current) {
+        editorRef.current.setContent("");
+      }
+      setContent(""); 
+      router.push("/blog"); // Redirect to the blog listing page
+    } catch (error) {
+       toast({
+        title: "Failed to Publish Post",
+        description: (error as Error).message || "An unexpected error occurred.",
         variant: "destructive",
       });
-      setIsLoading(false);
-      return;
     }
-
-    // Mock submission
-    console.log("Publishing News:", { title, content });
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    toast({
-      title: "Post Submitted!",
-      description: `"${title}" has been (mock) published.`,
-    });
-
-    // Clear form (optional)
-    // setTitle("");
-    // if (editorRef.current) {
-    //   editorRef.current.setContent("");
-    // }
-    // setContent(""); 
-
-    setIsLoading(false);
-    // Potentially redirect or update UI
   };
 
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
         <Newspaper className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-bold text-foreground">Publish News / Blog Post</h1>
+        <h1 className="text-3xl font-bold text-foreground">Create Blog Post</h1>
       </div>
       <p className="text-muted-foreground">
-        Create and publish engaging content for the chess community.
+        Share your thoughts, news, and analysis with the chess community.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <Label htmlFor="post-title" className="text-lg">Post Title</Label>
+          <Label htmlFor="post-title" className="text-lg">Post Title <span className="text-destructive">*</span></Label>
           <Input
             id="post-title"
             type="text"
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={handleTitleChange}
             placeholder="Enter a catchy title"
             className="mt-1 text-base"
             required
@@ -92,8 +124,73 @@ export default function PublishNewsPage() {
         </div>
 
         <div>
-          <Label htmlFor="post-content" className="text-lg">Content</Label>
-          <div className="mt-1 rounded-md border overflow-hidden">
+          <Label htmlFor="post-slug" className="text-lg">Slug <span className="text-destructive">*</span></Label>
+          <Input
+            id="post-slug"
+            type="text"
+            value={slug}
+            onChange={handleSlugChange}
+            placeholder="e.g., my-awesome-post"
+            className="mt-1 text-base bg-muted/50"
+            required
+          />
+          <p className="text-sm text-muted-foreground mt-1">URL-friendly version of the title. Auto-generated, but can be manually adjusted.</p>
+        </div>
+
+        <div>
+          <Label htmlFor="post-image-url" className="text-lg flex items-center">
+            <ImageIcon className="w-5 h-5 mr-2 text-muted-foreground" /> Cover Image URL
+          </Label>
+          <Input
+            id="post-image-url"
+            type="url"
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="https://example.com/your-image.png"
+            className="mt-1 text-base"
+          />
+           <p className="text-sm text-muted-foreground mt-1">Optional: Provide a URL for the post's main image.</p>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <Label htmlFor="post-category" className="text-lg flex items-center">
+              <GripVertical className="w-5 h-5 mr-2 text-muted-foreground" /> Category <span className="text-destructive">*</span>
+            </Label>
+            <Select value={category} onValueChange={(value) => setCategory(value as BlogCategory)}>
+              <SelectTrigger className="mt-1 text-base">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {blogCategories.map(cat => (
+                  <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="post-tags" className="text-lg flex items-center">
+                <TagsIcon className="w-5 h-5 mr-2 text-muted-foreground" /> Tags
+            </Label>
+            <Input
+              id="post-tags"
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="e.g., chess, strategy, fun"
+              className="mt-1 text-base"
+            />
+            <p className="text-sm text-muted-foreground mt-1">Comma-separated list of tags.</p>
+          </div>
+        </div>
+
+
+        <div>
+          <Label htmlFor="post-content" className="text-lg flex items-center">
+            <Type className="w-5 h-5 mr-2 text-muted-foreground" /> Content <span className="text-destructive">*</span>
+          </Label>
+          <div className="mt-1 rounded-md border dark:border-input overflow-hidden">
             <RichTextEditor
               editorRef={editorRef}
               content={content}
@@ -105,13 +202,13 @@ export default function PublishNewsPage() {
           </p>
         </div>
 
-        <Button type="submit" size="lg" className="w-full md:w-auto" disabled={isLoading}>
-          {isLoading ? (
+        <Button type="submit" size="lg" className="w-full md:w-auto" disabled={isLoadingBlogPosts}>
+          {isLoadingBlogPosts ? (
             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           ) : (
             <Send className="mr-2 h-5 w-5" />
           )}
-          {isLoading ? "Publishing..." : "Publish Post"}
+          {isLoadingBlogPosts ? "Publishing..." : "Publish Post"}
         </Button>
       </form>
     </div>

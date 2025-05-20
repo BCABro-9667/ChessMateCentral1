@@ -91,8 +91,73 @@ export default {
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out'
-  		}
+  		},
+      typography: (theme: (path: string) => string) => ({ // Added typography for prose
+        DEFAULT: {
+          css: {
+            color: theme('colors.foreground'),
+            a: {
+              color: theme('colors.primary.DEFAULT'),
+              '&:hover': {
+                color: theme('colors.primary.DEFAULT / 0.8'),
+              },
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              color: theme('colors.foreground'),
+            },
+            strong: {
+              color: theme('colors.foreground'),
+            },
+            code: {
+              color: theme('colors.primary.DEFAULT'),
+              backgroundColor: theme('colors.muted.DEFAULT'),
+              padding: '0.2em 0.4em',
+              borderRadius: theme('borderRadius.sm'),
+            },
+            pre: {
+              color: theme('colors.foreground'),
+              backgroundColor: theme('colors.muted.DEFAULT'),
+            },
+            blockquote: {
+              color: theme('colors.muted.foreground'),
+              borderLeftColor: theme('colors.border'),
+            },
+          },
+        },
+        invert: { // For dark mode
+          css: {
+            color: theme('colors.foreground'), // Should be a light color in dark mode from globals.css
+            a: {
+              color: theme('colors.primary.DEFAULT'), // Should be a lighter primary in dark mode
+               '&:hover': {
+                color: theme('colors.primary.DEFAULT / 0.8'),
+              },
+            },
+             'h1, h2, h3, h4, h5, h6': {
+              color: theme('colors.foreground'),
+            },
+            strong: {
+              color: theme('colors.foreground'),
+            },
+            code: {
+              color: theme('colors.primary.DEFAULT'),
+              backgroundColor: theme('colors.muted.DEFAULT'), // Should be a darker muted in dark mode
+            },
+            pre: {
+              color: theme('colors.foreground'),
+              backgroundColor: theme('colors.muted.DEFAULT'),
+            },
+            blockquote: {
+              color: theme('colors.muted.foreground'),
+              borderLeftColor: theme('colors.border'),
+            },
+          },
+        },
+      }),
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require('@tailwindcss/typography'), // Added typography plugin
+  ],
 } satisfies Config;

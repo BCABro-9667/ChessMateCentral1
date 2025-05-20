@@ -3,7 +3,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Crown, LogIn, LogOut, LayoutDashboard, Sun, Moon } from 'lucide-react';
+import { Crown, LogIn, LogOut, LayoutDashboard, Sun, Moon, NewspaperIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthMock } from '@/hooks/useAuthMock';
 import { useTheme } from '@/hooks/useTheme';
@@ -23,9 +23,17 @@ export default function Header() {
           <Crown className="w-8 h-8" />
           <span className="text-2xl font-bold">Chessmate Central</span>
         </Link>
-        <nav className="flex items-center gap-2 sm:gap-4">
+        <nav className="flex items-center gap-2 sm:gap-3">
           <Button variant="ghost" asChild className="hidden sm:inline-flex">
             <Link href="/">Home</Link>
+          </Button>
+          <Button variant="ghost" asChild className="hidden sm:inline-flex">
+            <Link href="/tournaments">Tournaments</Link>
+          </Button>
+           <Button variant="ghost" asChild className="hidden sm:inline-flex">
+            <Link href="/blog">
+              <NewspaperIcon className="mr-2 h-4 w-4" /> Blog
+            </Link>
           </Button>
           <Button
             variant="ghost"
