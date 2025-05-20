@@ -1,7 +1,8 @@
+
 // src/app/dashboard/tournaments/[id]/register/page.tsx
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams, notFound } from 'next/navigation';
 import { useTournaments } from '@/hooks/useTournaments';
 import { usePlayerRegistrations } from '@/hooks/usePlayerRegistrations';
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Loader2, ArrowLeft, ShieldAlert, Image as ImageIcon } from 'lucide-react';
+import { UserPlus, Loader2, ArrowLeft, ShieldAlert, Upload } from 'lucide-react';
 import Link from 'next/link';
 import type { Tournament } from '@/types/tournament';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -31,14 +32,15 @@ export default function RegisterPlayerPage() {
   const [playerEmail, setPlayerEmail] = useState('');
   const [feePaid, setFeePaid] = useState(true);
 
-  // New fields
   const [gender, setGender] = useState('');
   const [dob, setDob] = useState('');
   const [organization, setOrganization] = useState('');
   const [mobile, setMobile] = useState('');
   const [fideRating, setFideRating] = useState<number | ''>(0);
   const [fideId, setFideId] = useState('-');
-  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,6 +51,88 @@ export default function RegisterPlayerPage() {
     }
   }, [isLoadingTournaments, tournamentId, getTournamentById]);
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!playerName.trim()) {
+      toast({
+        title: "Missing Information",
+        description: "Please enter the player's name.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!tournament) return;
+
+    setIsSubmitting(true);
+    let uploadedScreenshotUrl: string | undefined = undefined;
+
+    try {
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResponse.ok || !uploadResult.success) {
+          throw new Error(uploadResult.message || 'Payment screenshot upload failed.');
+        }
+        uploadedScreenshotUrl = uploadResult.url;
+      }
+
+      await addRegistration({
+        tournamentId: tournament.id,
+        tournamentName: tournament.name,
+        playerName,
+        playerEmail,
+        feePaid,
+        gender,
+        dob,
+        organization,
+        mobile,
+        fideRating: Number(fideRating) || 0,
+        fideId: fideId || '-',
+        paymentScreenshotUrl: uploadedScreenshotUrl,
+      });
+      toast({
+        title: "Player Registered!",
+        description: `${playerName} has been registered for "${tournament.name}".`,
+      });
+      // Clear form
+      setPlayerName('');
+      setPlayerEmail('');
+      setFeePaid(true);
+      setGender('');
+      setDob('');
+      setOrganization('');
+      setMobile('');
+      setFideRating(0);
+      setFideId('-');
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error("Failed to register player:", error);
+      toast({
+        title: "Registration Failed",
+        description: (error as Error).message || "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoadingTournaments || tournament === undefined) {
     return (
       <div className="space-y-6">
@@ -56,7 +140,7 @@ export default function RegisterPlayerPage() {
         <Card>
           <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
           <CardContent className="space-y-4">
-            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            {[...Array(9)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             <Skeleton className="h-6 w-1/4" />
           </CardContent>
           <CardFooter><Skeleton className="h-10 w-24" /></CardFooter>
@@ -85,63 +169,6 @@ export default function RegisterPlayerPage() {
       </div>
     );
   }
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!playerName.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please enter the player's name.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (!tournament) return;
-
-    setIsSubmitting(true);
-    try {
-      await addRegistration({ // Changed to await
-        tournamentId: tournament.id,
-        tournamentName: tournament.name,
-        playerName,
-        playerEmail,
-        feePaid,
-        gender,
-        dob,
-        organization,
-        mobile,
-        fideRating: Number(fideRating) || 0,
-        fideId: fideId || '-',
-        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
-      });
-      toast({
-        title: "Player Registered!",
-        description: `${playerName} has been registered for "${tournament.name}".`,
-      });
-      // Clear form
-      setPlayerName('');
-      setPlayerEmail('');
-      setFeePaid(true);
-      setGender('');
-      setDob('');
-      setOrganization('');
-      setMobile('');
-      setFideRating(0);
-      setFideId('-');
-      setPaymentScreenshotUrl('');
-      // Consider redirecting or refreshing data:
-      // router.push(`/dashboard/tournaments/${tournament.id}/registrations`); 
-    } catch (error) {
-      console.error("Failed to register player:", error);
-      toast({
-        title: "Registration Failed",
-        description: (error as Error).message || "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -262,16 +289,18 @@ export default function RegisterPlayerPage() {
             </div>
             
             <div>
-              <Label htmlFor="paymentScreenshotUrl">Payment Screenshot URL</Label>
+              <Label htmlFor="paymentScreenshotFile">Payment Screenshot</Label>
               <Input
-                id="paymentScreenshotUrl"
-                type="url"
-                value={paymentScreenshotUrl}
-                onChange={(e) => setPaymentScreenshotUrl(e.target.value)}
-                placeholder="https://example.com/payment.jpg"
+                id="paymentScreenshotFile"
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                className="mt-1"
+                accept="image/png, image/jpeg, image/gif"
               />
-              <p className="text-sm text-muted-foreground mt-1">
-                Upload the screenshot to a service like Cloudinary or Imgur and paste the direct image URL here.
+              {selectedFile && <p className="text-sm text-muted-foreground mt-1">Selected: {selectedFile.name}</p>}
+               <p className="text-sm text-muted-foreground mt-1">
+                Upload proof of payment (PNG, JPG, GIF). This is for local demonstration. For production, use a service like Cloudinary.
               </p>
             </div>
 

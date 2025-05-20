@@ -1,3 +1,4 @@
+
 // src/app/dashboard/tournaments/[id]/registrations/page.tsx
 "use client";
 
@@ -10,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, ArrowLeft, PlusCircle, CheckCircle, XCircle, Loader2, Trash2, Eye } from 'lucide-react';
+import { Users, ArrowLeft, PlusCircle, CheckCircle, XCircle, Loader2, Trash2, Eye, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Tournament } from '@/types/tournament';
 import type { PlayerRegistration } from '@/types/playerRegistration';
@@ -27,6 +28,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
+import EditPlayerRegistrationModal from '@/components/modals/EditPlayerRegistrationModal';
 
 export default function ViewRegistrationsPage() {
   const params = useParams();
@@ -46,6 +48,10 @@ export default function ViewRegistrationsPage() {
 
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
   const currentRegistrations = getRegistrationsByTournamentId(tournamentId);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingRegistration, setEditingRegistration] = useState<PlayerRegistration | null>(null);
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   
   useEffect(() => {
     if (!isLoadingTournamentDetails && tournamentId) {
@@ -76,27 +82,69 @@ export default function ViewRegistrationsPage() {
     }
   };
 
-  const toggleFeePaidStatus = async (registration: PlayerRegistration) => {
+  const handleOpenEditModal = (registration: PlayerRegistration) => {
+    setEditingRegistration(registration);
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveRegistration = async (updatedData: PlayerRegistration, newFile?: File | null) => {
+    if (!editingRegistration) return;
+    setIsSubmittingEdit(true);
+    let finalScreenshotUrl = updatedData.paymentScreenshotUrl;
+
     try {
-      // Create the update payload, explicitly keeping other fields to avoid accidental removal if API structure expects full objects
-      const updates: Partial<PlayerRegistration> = { 
-        feePaid: !registration.feePaid,
-        // To ensure other fields are not lost if the PUT request expects the full object or if `updates` is used to replace the whole doc:
-        playerName: registration.playerName,
-        playerEmail: registration.playerEmail,
-        gender: registration.gender,
-        dob: registration.dob,
-        organization: registration.organization,
-        mobile: registration.mobile,
-        fideRating: registration.fideRating,
-        fideId: registration.fideId,
-        paymentScreenshotUrl: registration.paymentScreenshotUrl,
+      if (newFile) {
+        const formData = new FormData();
+        formData.append('file', newFile);
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResponse.ok || !uploadResult.success) {
+          throw new Error(uploadResult.message || 'New payment screenshot upload failed.');
+        }
+        finalScreenshotUrl = uploadResult.url;
+      }
+      
+      const payload: Partial<PlayerRegistration> = {
+        ...updatedData, // contains all fields from the form
+        paymentScreenshotUrl: finalScreenshotUrl, // use the newly uploaded URL or keep existing if no new file
       };
+      // Remove id and tournamentId from payload as they should not be updated directly via PUT body for this registrationId
+      delete (payload as any).id; 
+      delete (payload as any).tournamentId;
+
+
+      await updateRegistration(editingRegistration.id, payload);
+      toast({
+        title: "Registration Updated",
+        description: `Details for ${updatedData.playerName} have been updated.`,
+      });
+      setIsEditModalOpen(false);
+      setEditingRegistration(null);
+      fetchRegistrationsByTournamentId(tournamentId); // Refresh list
+    } catch (e) {
+      toast({
+        title: "Error Updating Registration",
+        description: (e as Error).message || "Could not update registration.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingEdit(false);
+    }
+  };
+
+
+  const toggleFeePaidStatus = async (registration: PlayerRegistration) => {
+    const updates: Partial<PlayerRegistration> = { feePaid: !registration.feePaid };
+    try {
       await updateRegistration(registration.id, updates);
       toast({
         title: "Payment Status Updated",
         description: `Fee payment status for ${registration.playerName} has been updated.`,
       });
+       fetchRegistrationsByTournamentId(tournamentId); // Refresh list
     } catch (e) {
        toast({
         title: "Error Updating Status",
@@ -163,7 +211,7 @@ export default function ViewRegistrationsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Player List ({isLoadingRegistrations ? <Loader2 className="inline w-4 h-4 animate-spin"/> : currentRegistrations.length})</CardTitle>
+          <CardTitle>Player List ({isLoadingRegistrations && currentRegistrations.length === 0 ? <Loader2 className="inline w-4 h-4 animate-spin"/> : currentRegistrations.length})</CardTitle>
           <CardDescription>
             Manage and view players registered for &quot;{tournament?.name}&quot;.
           </CardDescription>
@@ -171,7 +219,7 @@ export default function ViewRegistrationsPage() {
         <CardContent>
           {isLoadingRegistrations && currentRegistrations.length === 0 ? (
             <div className="space-y-2">
-              {[...Array(5)].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+              {[...Array(5)].map((_,i) => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : !isLoadingRegistrations && currentRegistrations.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet.</p>
@@ -235,7 +283,10 @@ export default function ViewRegistrationsPage() {
                         )}
                       </TableCell>
                       <TableCell>{format(new Date(reg.registrationDate), 'PPp')}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right space-x-1">
+                         <Button variant="ghost" size="icon" title="Edit Registration" onClick={() => handleOpenEditModal(reg)} disabled={isLoadingRegistrations}>
+                            <Edit className="h-4 w-4" />
+                        </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" title="Delete Registration" className="text-destructive hover:text-destructive/80" disabled={isLoadingRegistrations}>
@@ -269,6 +320,18 @@ export default function ViewRegistrationsPage() {
           )}
         </CardContent>
       </Card>
+      {editingRegistration && (
+        <EditPlayerRegistrationModal
+          isOpen={isEditModalOpen}
+          onClose={() => {
+            setIsEditModalOpen(false);
+            setEditingRegistration(null);
+          }}
+          registration={editingRegistration}
+          onSave={handleSaveRegistration}
+          isLoading={isSubmittingEdit}
+        />
+      )}
     </div>
   );
 }

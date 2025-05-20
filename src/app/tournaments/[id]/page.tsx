@@ -1,3 +1,4 @@
+
 // src/app/tournaments/[id]/page.tsx
 "use client"; 
 
@@ -13,11 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Image as ImageIconLucide } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
 import type { PlayerScore } from '@/types/tournamentResult';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -60,7 +61,9 @@ export default function TournamentDetailsPage() {
   const [mobile, setMobile] = useState('');
   const [fideRating, setFideRating] = useState<number | ''>(0);
   const [fideId, setFideId] = useState('-');
-  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+  
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const publicFileInputRef = useRef<HTMLInputElement>(null);
 
 
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
@@ -83,6 +86,7 @@ export default function TournamentDetailsPage() {
         }
         return {
           ...ps,
+          playerName: ps.playerName || 'N/A',
           roundScores: newRoundScores.slice(0, currentTotalRounds),
         };
       });
@@ -140,6 +144,14 @@ export default function TournamentDetailsPage() {
     }
   };
 
+  const handlePublicFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files[0]) {
+      setSelectedFile(event.target.files[0]);
+    } else {
+      setSelectedFile(null);
+    }
+  };
+
   const handlePublicRegistrationSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!playerName.trim()) {
@@ -153,7 +165,23 @@ export default function TournamentDetailsPage() {
     if (!tournament) return;
 
     setIsSubmittingRegistration(true);
+    let uploadedScreenshotUrl: string | undefined = undefined;
+    
     try {
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResponse.ok || !uploadResult.success) {
+          throw new Error(uploadResult.message || 'Payment screenshot upload failed.');
+        }
+        uploadedScreenshotUrl = uploadResult.url;
+      }
+
       await addRegistration({
         tournamentId: tournament.id,
         tournamentName: tournament.name,
@@ -166,7 +194,7 @@ export default function TournamentDetailsPage() {
         mobile,
         fideRating: Number(fideRating) || 0,
         fideId: fideId || '-',
-        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
+        paymentScreenshotUrl: uploadedScreenshotUrl,
       });
       toast({
         title: "Registration Submitted!",
@@ -180,7 +208,10 @@ export default function TournamentDetailsPage() {
       setMobile('');
       setFideRating(0);
       setFideId('-');
-      setPaymentScreenshotUrl('');
+      setSelectedFile(null);
+      if(publicFileInputRef.current) {
+        publicFileInputRef.current.value = '';
+      }
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
@@ -213,8 +244,8 @@ export default function TournamentDetailsPage() {
                 priority
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.srcset = `https://placehold.co/1200x400.png`;
-                  target.src = `https://placehold.co/1200x400.png`;
+                  target.srcset = `https://placehold.co/1200x400.png`; // fallback for srcset
+                  target.src = `https://placehold.co/1200x400.png`; // fallback for src
                 }}
               />
               <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
@@ -353,17 +384,18 @@ export default function TournamentDetailsPage() {
                               </div>
                             </div>
                             <div>
-                              <Label htmlFor="publicPaymentScreenshotUrl">Payment Screenshot URL</Label>
+                              <Label htmlFor="publicPaymentScreenshotFile">Payment Screenshot</Label>
                               <Input
-                                id="publicPaymentScreenshotUrl"
-                                type="url"
-                                value={paymentScreenshotUrl}
-                                onChange={(e) => setPaymentScreenshotUrl(e.target.value)}
-                                placeholder="https://example.com/payment.jpg"
+                                id="publicPaymentScreenshotFile"
+                                type="file"
+                                ref={publicFileInputRef}
+                                onChange={handlePublicFileChange}
                                 className="mt-1"
+                                accept="image/png, image/jpeg, image/gif"
                               />
+                               {selectedFile && <p className="text-sm text-muted-foreground mt-1">Selected: {selectedFile.name}</p>}
                                <p className="text-sm text-muted-foreground mt-1">
-                                Please upload your payment proof to a service like Imgur/Cloudinary and paste the image URL here.
+                                Please upload your payment proof (PNG, JPG, GIF). This is for local demonstration.
                               </p>
                             </div>
                           </CardContent>
@@ -412,6 +444,13 @@ export default function TournamentDetailsPage() {
                                       )}
                                   </div>
                                 </div>
+                                 {reg.paymentScreenshotUrl && (
+                                  <Button variant="outline" size="sm" asChild>
+                                    <a href={reg.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" title="View Payment Proof">
+                                      <Eye className="h-4 w-4" />
+                                    </a>
+                                  </Button>
+                                )}
                               </li>
                             ))}
                           </ul>
