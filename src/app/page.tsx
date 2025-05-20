@@ -4,7 +4,7 @@
 
 import Header from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { CheckCircle, Crown, Users, Zap, CalendarDays, ListChecks, BarChart3, Newspaper, Settings, ShieldCheck, LogIn, FilePlus2, Edit3, ClipboardList } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
