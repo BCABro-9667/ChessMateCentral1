@@ -8,7 +8,7 @@ import { usePlayerRegistrations } from '@/hooks/usePlayerRegistrations';
 import { useTournamentResults } from '@/hooks/useTournamentResults';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,7 +55,7 @@ export default function TournamentDetailsPage() {
   // Form state for public registration
   const [playerName, setPlayerName] = useState('');
   const [playerEmail, setPlayerEmail] = useState('');
-  const [gender, setGender] = useState('');
+  const [gender, setGender] = useState<string | undefined>(undefined);
   const [dob, setDob] = useState('');
   const [organization, setOrganization] = useState('');
   const [mobile, setMobile] = useState('');
@@ -189,7 +189,7 @@ export default function TournamentDetailsPage() {
         playerName,
         playerEmail,
         feePaid: false, 
-        gender,
+        gender: gender || undefined, // Pass undefined if gender is not selected
         dob,
         organization,
         mobile,
@@ -203,7 +203,7 @@ export default function TournamentDetailsPage() {
       });
       setPlayerName('');
       setPlayerEmail('');
-      setGender('');
+      setGender(undefined);
       setDob('');
       setOrganization('');
       setMobile('');
@@ -228,6 +228,8 @@ export default function TournamentDetailsPage() {
   
   const totalRounds = tournament?.totalRounds || 0;
   const coverImageSrc = tournament?.imageUrl || `https://placehold.co/1200x400.png`;
+  const registrationCardKey = tournament.status === 'Upcoming' ? 'form-active' : 'form-inactive';
+
 
   return (
     <>
@@ -285,7 +287,7 @@ export default function TournamentDetailsPage() {
                       <UserPlus className="w-6 h-6 mr-2" /> Tournament Registration
                     </h2>
                     {tournament.status === 'Upcoming' ? (
-                      <Card>
+                      <Card key={registrationCardKey}>
                         <CardHeader>
                           <CardTitle>Register Now!</CardTitle>
                           <CardDescription>Entry Fee: ${tournament.entryFee}</CardDescription>
@@ -421,7 +423,7 @@ export default function TournamentDetailsPage() {
                         </form>
                       </Card>
                     ) : (
-                      <Card className="bg-muted/50">
+                      <Card key={registrationCardKey} className="bg-muted/50">
                         <CardContent className="pt-6 text-center">
                           <p className="text-muted-foreground text-lg">
                             {tournament.status === 'Active' ? "This tournament is currently active. Registrations are closed." :
