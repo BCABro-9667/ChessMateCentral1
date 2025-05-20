@@ -52,7 +52,7 @@ export default function BlogPostPage() {
     );
   }
 
-  if (post === null && !isLoadingBlogPosts) { // Explicitly null means not found after loading
+  if (post === null && !isLoadingBlogPosts) { 
     notFound();
   }
   
@@ -71,7 +71,6 @@ export default function BlogPostPage() {
       )
   }
 
-  // This should ideally not be reached if notFound() is called, but as a fallback.
   if (!post) {
      return (
       <>
@@ -84,9 +83,7 @@ export default function BlogPostPage() {
     );
   }
 
-
   const coverImageSrc = post.imageUrl || `https://placehold.co/1200x600.png`;
-
 
   return (
     <>
@@ -140,15 +137,14 @@ export default function BlogPostPage() {
                 )}
               </header>
 
-              {/* Render HTML content from Rich Text Editor */}
-              <div
-                className="prose prose-lg dark:prose-invert max-w-none"
-                dangerouslySetInnerHTML={{ __html: post.content }}
-              />
+              {/* Render plain text content, respecting newlines */}
+              <div className="prose prose-lg dark:prose-invert max-w-none whitespace-pre-line">
+                {post.content}
+              </div>
               
               <div className="mt-12 border-t pt-8">
                  <Button variant="outline" onClick={() => router.back()}>
-                    <ArrowLeft className="mr-2 h-4 w-4" /> Back to Blog
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Back
                  </Button>
               </div>
 

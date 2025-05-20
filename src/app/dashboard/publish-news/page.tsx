@@ -1,16 +1,14 @@
 // src/app/dashboard/publish-news/page.tsx
 "use client";
 
-import { useState, useRef, useEffect, useCallback }from "react";
+import { useState, useCallback }from "react";
 import { Newspaper, Send, Loader2, ImageIcon, TagsIcon, Type, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Textarea } from "@/components/ui/textarea"; // Changed from RichTextEditor
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import RichTextEditor from "@/components/forms/RichTextEditor";
-import type { Editor as TinyMCEEditor } from "tinymce";
 import { blogCategories, type BlogCategory, type NewBlogPost } from "@/types/blog";
 import { useBlogPosts } from "@/hooks/useBlogPosts";
 import { useRouter } from "next/navigation";
@@ -36,8 +34,6 @@ export default function PublishNewsPage() {
   const [tags, setTags] = useState(""); // Comma-separated string
   const [content, setContent] = useState("");
   
-  const editorRef = useRef<TinyMCEEditor | null>(null);
-
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
@@ -46,10 +42,6 @@ export default function PublishNewsPage() {
 
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSlug(generateSlug(e.target.value)); // Still process it to ensure it's URL-friendly
-  };
-
-  const handleContentChange = (newContent: string) => {
-    setContent(newContent);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -68,8 +60,8 @@ export default function PublishNewsPage() {
       title,
       slug,
       imageUrl: imageUrl.trim() || undefined,
-      category: category as BlogCategory, // Cast because we validate it's not empty
-      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag), // Convert to array
+      category: category as BlogCategory, 
+      tags: tags.split(',').map(tag => tag.trim()).filter(tag => tag),
       content,
     };
 
@@ -85,11 +77,8 @@ export default function PublishNewsPage() {
       setImageUrl("");
       setCategory("");
       setTags("");
-      if (editorRef.current) {
-        editorRef.current.setContent("");
-      }
       setContent(""); 
-      router.push("/blog"); // Redirect to the blog listing page
+      router.push("/blog"); 
     } catch (error) {
        toast({
         title: "Failed to Publish Post",
@@ -185,20 +174,20 @@ export default function PublishNewsPage() {
           </div>
         </div>
 
-
         <div>
           <Label htmlFor="post-content" className="text-lg flex items-center">
             <Type className="w-5 h-5 mr-2 text-muted-foreground" /> Content <span className="text-destructive">*</span>
           </Label>
-          <div className="mt-1 rounded-md border dark:border-input overflow-hidden">
-            <RichTextEditor
-              editorRef={editorRef}
-              content={content}
-              onChange={handleContentChange}
-            />
-          </div>
+          <Textarea
+            id="post-content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Write your blog post content here..."
+            className="mt-1 text-base min-h-[300px] resize-y"
+            required
+          />
            <p className="text-sm text-muted-foreground mt-2">
-            Use the rich text editor above to format your post, add images, links, and more.
+            Enter your blog post content. Plain text is supported.
           </p>
         </div>
 
