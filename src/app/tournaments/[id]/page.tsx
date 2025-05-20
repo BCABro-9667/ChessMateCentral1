@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Upload } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Upload, RadioTower } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -80,13 +80,15 @@ export default function TournamentDetailsPage() {
       const currentTotalRounds = tournament.totalRounds || 0;
 
       const normalizedPlayerScores = currentTournamentResult.playerScores.map(ps => {
+        const playerRegInfo = registeredPlayers.find(p => p.id === ps.playerId);
         const newRoundScores = [...(ps.roundScores || [])]; 
         while (newRoundScores.length < currentTotalRounds) {
           newRoundScores.push(null);
         }
         return {
           ...ps,
-          playerName: ps.playerName || 'N/A',
+          playerName: playerRegInfo?.playerName || ps.playerName || 'N/A',
+          fideRating: playerRegInfo?.fideRating !== undefined ? playerRegInfo.fideRating : ps.fideRating,
           roundScores: newRoundScores.slice(0, currentTotalRounds),
         };
       });
@@ -95,16 +97,15 @@ export default function TournamentDetailsPage() {
         if (b.totalScore !== a.totalScore) {
           return b.totalScore - a.totalScore;
         }
-        if (b.fideRating && a.fideRating && b.fideRating !== a.fideRating) {
-          return b.fideRating - a.fideRating;
-        }
+        // Secondary sort: Buchholz, then Sonneborn-Berger, then FIDE rating (if applicable, not implemented here)
+        // For now, just player name as a simple tie-breaker
         return (a.playerName || 'N/A').localeCompare(b.playerName || 'N/A');
       });
       setTournamentStandings(sortedStandings);
-    } else {
-      setTournamentStandings([]);
+    } else if (tournament) { // If no results but tournament exists, ensure standings are empty
+        setTournamentStandings([]);
     }
-  }, [currentTournamentResult, tournamentId, tournament]);
+  }, [currentTournamentResult, tournamentId, tournament, registeredPlayers]);
 
 
   if (isLoadingTournamentDetails || tournament === undefined) {
@@ -212,6 +213,8 @@ export default function TournamentDetailsPage() {
       if(publicFileInputRef.current) {
         publicFileInputRef.current.value = '';
       }
+      // Refresh registrations list after successful submission
+      fetchRegistrationsByTournamentId(tournamentId);
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
@@ -244,16 +247,23 @@ export default function TournamentDetailsPage() {
                 priority
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.srcset = `https://placehold.co/1200x400.png`; // fallback for srcset
-                  target.src = `https://placehold.co/1200x400.png`; // fallback for src
+                  target.srcset = `https://placehold.co/1200x400.png`; 
+                  target.src = `https://placehold.co/1200x400.png`; 
                 }}
               />
-              <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-8">
-                <Badge variant={getStatusVariant(tournament.status)} className="absolute top-6 right-6 text-sm px-3 py-1">
-                  {tournament.status}
-                </Badge>
-                <h1 className="text-4xl md:text-5xl font-bold text-white mb-2 shadow-text">{tournament.name}</h1>
-                <p className="text-xl text-primary-foreground/80 shadow-text flex items-center">
+              <div className="absolute inset-0 bg-black/50 flex flex-col justify-end p-6 md:p-8">
+                <div className="absolute top-4 right-4 md:top-6 md:right-6 flex items-center gap-2">
+                    {tournament.status === 'Active' && (
+                        <Badge variant="destructive" className="text-sm px-3 py-1 animate-pulse">
+                            <RadioTower className="w-4 h-4 mr-1.5" /> LIVE
+                        </Badge>
+                    )}
+                    <Badge variant={getStatusVariant(tournament.status)} className="text-sm px-3 py-1">
+                      {tournament.status}
+                    </Badge>
+                </div>
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-2 shadow-text">{tournament.name}</h1>
+                <p className="text-lg md:text-xl text-primary-foreground/80 shadow-text flex items-center">
                   <MapPin className="w-5 h-5 mr-2" /> {tournament.location}
                 </p>
               </div>
@@ -271,13 +281,15 @@ export default function TournamentDetailsPage() {
                     </p>
                   </section>
 
-                  {tournament.status === 'Upcoming' && (
-                    <section>
+                  <section>
+                    <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
+                      <UserPlus className="w-6 h-6 mr-2" /> Tournament Registration
+                    </h2>
+                    {tournament.status === 'Upcoming' ? (
                       <Card>
                         <CardHeader>
-                          <CardTitle className="flex items-center text-xl">
-                            <UserPlus className="w-6 h-6 mr-2 text-primary" /> Register for this Tournament
-                          </CardTitle>
+                          <CardTitle>Register Now!</CardTitle>
+                          <CardDescription>Entry Fee: ${tournament.entryFee}</CardDescription>
                         </CardHeader>
                         <form onSubmit={handlePublicRegistrationSubmit}>
                           <CardContent className="space-y-4">
@@ -395,7 +407,7 @@ export default function TournamentDetailsPage() {
                               />
                                {selectedFile && <p className="text-sm text-muted-foreground mt-1">Selected: {selectedFile.name}</p>}
                                <p className="text-sm text-muted-foreground mt-1">
-                                Please upload your payment proof (PNG, JPG, GIF). This is for local demonstration.
+                                Please upload your payment proof (PNG, JPG, GIF).
                               </p>
                             </div>
                           </CardContent>
@@ -409,8 +421,19 @@ export default function TournamentDetailsPage() {
                           </CardFooter>
                         </form>
                       </Card>
-                    </section>
-                  )}
+                    ) : (
+                      <Card className="bg-muted/50">
+                        <CardContent className="pt-6 text-center">
+                          <p className="text-muted-foreground text-lg">
+                            {tournament.status === 'Active' ? "This tournament is currently active. Registrations are closed." :
+                             tournament.status === 'Completed' ? "This tournament has been completed. Registrations are closed." :
+                             tournament.status === 'Cancelled' ? "This tournament has been cancelled. Registrations are not available." :
+                             "Registrations are currently closed for this tournament."}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </section>
 
                   <section>
                      <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
@@ -459,7 +482,7 @@ export default function TournamentDetailsPage() {
                     ) : (
                        <div className="bg-muted p-6 rounded-lg text-center">
                           <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                          <p className="text-muted-foreground">No players registered yet. Be the first!</p>
+                          <p className="text-muted-foreground">No players registered yet. {tournament.status === 'Upcoming' && 'Be the first!'}</p>
                       </div>
                     )}
                   </section>
@@ -468,14 +491,14 @@ export default function TournamentDetailsPage() {
                      <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
                       <BarChart3 className="w-6 h-6 mr-2" /> Results & Standings
                     </h2>
-                    {isLoadingSavedResults && (
+                    {isLoadingSavedResults && tournament.status !== 'Upcoming' && (
                       <div className="space-y-2">
                         <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-10 w-full" />
                         <Skeleton className="h-10 w-full" />
                       </div>
                     )}
-                    {!isLoadingSavedResults && errorResults && (
+                    {!isLoadingSavedResults && errorResults && tournament.status !== 'Upcoming' && (
                        <div className="bg-destructive/10 p-6 rounded-lg text-center text-destructive">
                           <Trophy className="w-12 h-12 mx-auto mb-3" />
                           <p>Error loading results: {errorResults}</p>
@@ -550,7 +573,7 @@ export default function TournamentDetailsPage() {
                   </section>
                 </div>
 
-                <aside className="space-y-6 md:sticky md:top-24">
+                <aside className="space-y-6 md:sticky md:top-24"> {/* Increased top margin for sticky aside */}
                   <Card className="shadow-md">
                     <CardHeader>
                       <CardTitle className="text-xl text-primary flex items-center">
@@ -588,8 +611,8 @@ export default function TournamentDetailsPage() {
                   </Card>
                   
                   <Button className="w-full text-lg" size="lg" asChild>
-                    <Link href="/">
-                        <Eye className="mr-2 h-5 w-5" /> Back to All Tournaments (Home)
+                    <Link href="/tournaments"> {/* Changed from "/" to "/tournaments" */}
+                        <Eye className="mr-2 h-5 w-5" /> Back to All Tournaments
                     </Link>
                   </Button>
                 </aside>
@@ -606,3 +629,4 @@ export default function TournamentDetailsPage() {
     </>
   );
 }
+

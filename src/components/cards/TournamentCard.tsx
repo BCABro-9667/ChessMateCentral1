@@ -1,9 +1,10 @@
+
 // src/components/cards/TournamentCard.tsx
 import type { Tournament } from '@/types/tournament';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Swords, Info, ListChecks, ClipboardList, Hash, Edit3, Trash2, Loader2, MoreVertical, Eye } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Swords, Info, ListChecks, ClipboardList, Hash, Edit3, Trash2, Loader2, MoreVertical, Eye, RadioTower, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import {
@@ -72,14 +73,19 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
     <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
       <CardHeader>
         <div className="flex justify-between items-start gap-2">
-          <div className="flex-grow"> {/* Container for title and type to allow wrapping */}
+          <div className="flex-grow"> 
             <CardTitle className="text-base sm:text-lg mb-1 leading-tight">{tournament.name}</CardTitle>
             <CardDescription className="flex items-center text-xs sm:text-sm">
               <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 text-muted-foreground" />
               {tournament.type}
             </CardDescription>
           </div>
-          <div className="flex items-center flex-shrink-0 gap-1"> {/* Actions on the right */}
+          <div className="flex items-center flex-shrink-0 gap-1">
+            {tournament.status === 'Active' && (
+              <Badge variant="destructive" className="text-xs px-2 py-0.5 animate-pulse">
+                <RadioTower className="w-3 h-3 mr-1" /> LIVE
+              </Badge>
+            )}
             <Badge variant={getStatusVariant(tournament.status)} className="text-xs px-2 py-0.5">
               {tournament.status}
             </Badge>
@@ -105,7 +111,7 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <DropdownMenuItem
-                          onSelect={(event) => event.preventDefault()} // Important to prevent dropdown from closing
+                          onSelect={(event) => event.preventDefault()} 
                           className="text-destructive focus:text-destructive focus:bg-destructive/10 !hover:bg-destructive/10"
                         >
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -169,7 +175,7 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
         </p>
       </CardContent>
       <CardFooter className="border-t pt-3 sm:pt-4 mt-auto">
-        {isDashboardContext ? (
+        {isDashboardContext && onUpdateStatus ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
             {(tournament.status === 'Active' || tournament.status === 'Upcoming') && (
               <Button asChild variant="outline" size="sm" className="w-full">
@@ -194,7 +200,12 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
                 <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Active')} disabled={isLoadingTournaments} className="w-full">Set Active</Button>
             )}
             {tournament.status === 'Active' && (
+              <>
                 <Button variant="secondary" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Completed')} disabled={isLoadingTournaments} className="w-full">Set Completed</Button>
+                <Button variant="outline" size="sm" onClick={() => onUpdateStatus(tournament.id, 'Upcoming')} disabled={isLoadingTournaments} className="w-full text-orange-600 hover:text-orange-700 border-orange-500 hover:border-orange-600">
+                    <RotateCcw className="mr-1 h-3.5 w-3.5" /> Set Upcoming
+                </Button>
+              </>
             )}
           </div>
         ) : (
@@ -206,3 +217,4 @@ export default function TournamentCard({ tournament, onUpdateStatus }: Tournamen
     </Card>
   );
 }
+
