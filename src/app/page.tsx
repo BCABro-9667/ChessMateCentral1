@@ -11,6 +11,68 @@ import Link from 'next/link';
 import { useTournaments } from '@/hooks/useTournaments';
 import TournamentCard from '@/components/cards/TournamentCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useBlogPosts } from '@/hooks/useBlogPosts'; // Added for blog posts
+import type { BlogPost } from '@/types/blog'; // Added for blog posts
+import { format } from 'date-fns'; // For blog post card
+import { Badge } from '@/components/ui/badge'; // For blog post card
+import { TagsIcon, CornerDownRight } from 'lucide-react'; // For blog post card
+
+// Re-using BlogPostCard from blog page for consistency
+// If a different card style is needed for homepage, this could be a new component.
+function BlogPostCardHome({ post }: { post: BlogPost }) {
+  const excerpt = post.content.replace(/<[^>]+>/g, '').substring(0, 120) + '...'; // Basic excerpt
+
+  return (
+    <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300">
+      {post.imageUrl && (
+        <div className="relative w-full h-48 sm:h-56">
+          <Image
+            src={post.imageUrl}
+            alt={post.title}
+            fill
+            style={{objectFit:"cover"}}
+            className="rounded-t-lg bg-muted"
+            data-ai-hint="article header"
+             onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.srcset = `https://placehold.co/600x400.png`; 
+                  target.src = `https://placehold.co/600x400.png`; 
+                }}
+          />
+        </div>
+      )}
+      <CardHeader>
+        <CardTitle className="text-xl md:text-2xl hover:text-primary transition-colors">
+          <Link href={`/blog/${post.slug}`}>{post.title}</Link>
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground flex items-center gap-2">
+          <CalendarDays className="w-3.5 h-3.5" /> {format(new Date(post.createdAt), 'MMMM dd, yyyy')}
+          <Badge variant="secondary" className="ml-auto">{post.category}</Badge>
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex-grow">
+        <p className="text-sm text-foreground/80 leading-relaxed">{excerpt}</p>
+      </CardContent>
+      <CardFooter className="mt-auto border-t pt-4">
+        <div className="flex justify-between items-center w-full">
+           {post.tags && post.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 items-center text-xs">
+              <TagsIcon className="w-3.5 h-3.5 text-muted-foreground" />
+              {post.tags.slice(0, 2).map(tag => (
+                <Badge key={tag} variant="outline" className="text-xs px-1.5 py-0.5">{tag}</Badge>
+              ))}
+               {post.tags.length > 2 && <span className="text-xs text-muted-foreground">+{post.tags.length-2}</span>}
+            </div>
+          )}
+          <Button asChild variant="link" size="sm" className="ml-auto text-primary hover:text-primary/80 px-0">
+            <Link href={`/blog/${post.slug}`}>Read More <CornerDownRight className="w-3.5 h-3.5 ml-1" /></Link>
+          </Button>
+        </div>
+      </CardFooter>
+    </Card>
+  );
+}
+
 
 const ServiceItem = ({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
   <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 bg-card/50 dark:bg-card/80 h-full">
@@ -44,6 +106,7 @@ const WorkflowStep = ({ icon: Icon, step, title, description }: { icon: React.El
 
 export default function HomePage() {
   const { tournaments, isLoadingTournaments } = useTournaments();
+  const { blogPosts, isLoadingBlogPosts } = useBlogPosts();
 
   const upcomingOrActiveTournaments = tournaments
     .filter(t => t.status === 'Upcoming' || t.status === 'Active')
@@ -54,6 +117,9 @@ export default function HomePage() {
     ? upcomingOrActiveTournaments 
     : tournaments.sort((a,b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()).slice(0,3);
 
+  const latestBlogPosts = blogPosts
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 3);
 
   return (
     <>
@@ -89,7 +155,7 @@ export default function HomePage() {
             </h2>
             {isLoadingTournaments ? (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {[1,2,3].map(i => <Skeleton key={i} className="h-[450px] w-full rounded-lg"/>)}
+                {[1,2,3].map(i => <Skeleton key={`tourn-skeleton-${i}`} className="h-[450px] w-full rounded-lg"/>)}
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -98,14 +164,46 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-            <div className="text-center mt-12">
-              <Button size="lg" asChild variant="secondary">
-                <Link href="/tournaments">View All Tournaments</Link>
-              </Button>
-            </div>
+            {tournaments.length > 0 && (
+              <div className="text-center mt-12">
+                <Button size="lg" asChild variant="secondary">
+                  <Link href="/tournaments">View All Tournaments</Link>
+                </Button>
+              </div>
+            )}
           </div>
         </section>
         )}
+
+        {/* Latest Blog Posts Section */}
+        {(isLoadingBlogPosts || latestBlogPosts.length > 0) && (
+          <section className="py-16 bg-secondary/10 dark:bg-secondary/5">
+            <div className="container mx-auto px-4">
+              <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">
+                Latest From Our Blog
+              </h2>
+              {isLoadingBlogPosts ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {[1,2,3].map(i => <Skeleton key={`blog-skeleton-${i}`} className="h-[450px] w-full rounded-lg"/>)}
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {latestBlogPosts.map((post) => (
+                    <BlogPostCardHome key={post.id} post={post} />
+                  ))}
+                </div>
+              )}
+              {blogPosts.length > 0 && (
+                <div className="text-center mt-12">
+                  <Button size="lg" asChild variant="secondary">
+                    <Link href="/blog">View All Posts</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
 
         {/* Our Services Section */}
         <section className="py-16 bg-secondary/30 dark:bg-secondary/20">
@@ -216,3 +314,6 @@ export default function HomePage() {
     </>
   );
 }
+
+
+    
