@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Upload, RadioTower } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Upload, RadioTower, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -67,6 +67,8 @@ export default function TournamentDetailsPage() {
 
 
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+  const [showRegisteredPlayers, setShowRegisteredPlayers] = useState(true);
+
 
   useEffect(() => {
     if (tournamentId) {
@@ -97,12 +99,10 @@ export default function TournamentDetailsPage() {
         if (b.totalScore !== a.totalScore) {
           return b.totalScore - a.totalScore;
         }
-        // Secondary sort: Buchholz, then Sonneborn-Berger, then FIDE rating (if applicable, not implemented here)
-        // For now, just player name as a simple tie-breaker
         return (a.playerName || 'N/A').localeCompare(b.playerName || 'N/A');
       });
       setTournamentStandings(sortedStandings);
-    } else if (tournament) { // If no results but tournament exists, ensure standings are empty
+    } else if (tournament) { 
         setTournamentStandings([]);
     }
   }, [currentTournamentResult, tournamentId, tournament, registeredPlayers]);
@@ -213,7 +213,6 @@ export default function TournamentDetailsPage() {
       if(publicFileInputRef.current) {
         publicFileInputRef.current.value = '';
       }
-      // Refresh registrations list after successful submission
       fetchRegistrationsByTournamentId(tournamentId);
     } catch (error) {
       console.error("Failed to register player:", error);
@@ -436,54 +435,64 @@ export default function TournamentDetailsPage() {
                   </section>
 
                   <section>
-                     <h2 className="text-2xl font-semibold mb-4 text-primary flex items-center">
-                      <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({isLoadingRegistrations ? <Loader2 className="inline w-4 h-4 animate-spin"/> : registeredPlayers.length})
-                    </h2>
-                    {isLoadingRegistrations && registeredPlayers.length === 0 ? (
-                       <div className="space-y-2">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                      </div>
-                    ) : !isLoadingRegistrations && errorRegistrations ? (
-                      <div className="bg-destructive/10 p-6 rounded-lg text-center text-destructive">
-                          <Users className="w-12 h-12 mx-auto mb-3" />
-                          <p>Error loading registrations: {errorRegistrations}</p>
-                      </div>
-                    ): registeredPlayers.length > 0 ? (
-                      <Card>
-                        <CardContent className="pt-6 max-h-96 overflow-y-auto">
-                          <ul className="space-y-3">
-                            {registeredPlayers.map(reg => (
-                              <li key={reg.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
-                                <div className="flex items-center">
-                                  <Users className="w-5 h-5 mr-3 text-muted-foreground flex-shrink-0" />
-                                  <div>
-                                     <span className="font-medium text-foreground">{reg.playerName}</span>
-                                     {reg.fideRating && reg.fideRating > 0 && (
-                                        <Badge variant="secondary" className="ml-2">
-                                          Rating: {reg.fideRating}
-                                        </Badge>
-                                      )}
-                                  </div>
-                                </div>
-                                 {reg.paymentScreenshotUrl && (
-                                  <Button variant="outline" size="sm" asChild>
-                                    <a href={reg.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" title="View Payment Proof">
-                                      <Eye className="h-4 w-4" />
-                                    </a>
-                                  </Button>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </CardContent>
-                      </Card>
-                    ) : (
-                       <div className="bg-muted p-6 rounded-lg text-center">
-                          <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                          <p className="text-muted-foreground">No players registered yet. {tournament.status === 'Upcoming' && 'Be the first!'}</p>
-                      </div>
+                    <div className="flex justify-between items-center mb-4">
+                       <h2 className="text-2xl font-semibold text-primary flex items-center">
+                        <ListChecks className="w-6 h-6 mr-2" /> Registered Players ({isLoadingRegistrations ? <Loader2 className="inline w-4 h-4 animate-spin"/> : registeredPlayers.length})
+                      </h2>
+                      <Button variant="outline" size="sm" onClick={() => setShowRegisteredPlayers(!showRegisteredPlayers)}>
+                        {showRegisteredPlayers ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+                        {showRegisteredPlayers ? "Hide Players" : "Show Players"}
+                      </Button>
+                    </div>
+                    {showRegisteredPlayers && (
+                      <>
+                        {isLoadingRegistrations && registeredPlayers.length === 0 ? (
+                          <div className="space-y-2">
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-10 w-full" />
+                            <Skeleton className="h-10 w-full" />
+                          </div>
+                        ) : !isLoadingRegistrations && errorRegistrations ? (
+                          <div className="bg-destructive/10 p-6 rounded-lg text-center text-destructive">
+                              <Users className="w-12 h-12 mx-auto mb-3" />
+                              <p>Error loading registrations: {errorRegistrations}</p>
+                          </div>
+                        ): registeredPlayers.length > 0 ? (
+                          <Card>
+                            <CardContent className="pt-6 max-h-96 overflow-y-auto">
+                              <ul className="space-y-3">
+                                {registeredPlayers.map(reg => (
+                                  <li key={reg.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-md shadow-sm">
+                                    <div className="flex items-center">
+                                      <Users className="w-5 h-5 mr-3 text-muted-foreground flex-shrink-0" />
+                                      <div>
+                                        <span className="font-medium text-foreground">{reg.playerName}</span>
+                                        {reg.fideRating && reg.fideRating > 0 && (
+                                            <Badge variant="secondary" className="ml-2">
+                                              Rating: {reg.fideRating}
+                                            </Badge>
+                                          )}
+                                      </div>
+                                    </div>
+                                    {reg.paymentScreenshotUrl && (
+                                      <Button variant="outline" size="icon" asChild className="h-8 w-8">
+                                        <a href={reg.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer" title="View Payment Proof">
+                                          <Eye className="h-4 w-4" />
+                                        </a>
+                                      </Button>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </CardContent>
+                          </Card>
+                        ) : (
+                          <div className="bg-muted p-6 rounded-lg text-center">
+                              <Users className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+                              <p className="text-muted-foreground">No players registered yet. {tournament.status === 'Upcoming' && 'Be the first!'}</p>
+                          </div>
+                        )}
+                      </>
                     )}
                   </section>
 
@@ -573,7 +582,7 @@ export default function TournamentDetailsPage() {
                   </section>
                 </div>
 
-                <aside className="space-y-6 md:sticky md:top-24"> {/* Increased top margin for sticky aside */}
+                <aside className="space-y-6 md:sticky md:top-24"> 
                   <Card className="shadow-md">
                     <CardHeader>
                       <CardTitle className="text-xl text-primary flex items-center">
@@ -611,7 +620,7 @@ export default function TournamentDetailsPage() {
                   </Card>
                   
                   <Button className="w-full text-lg" size="lg" asChild>
-                    <Link href="/tournaments"> {/* Changed from "/" to "/tournaments" */}
+                    <Link href="/tournaments"> 
                         <Eye className="mr-2 h-5 w-5" /> Back to All Tournaments
                     </Link>
                   </Button>
@@ -630,3 +639,4 @@ export default function TournamentDetailsPage() {
   );
 }
 
+    

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, ArrowLeft, PlusCircle, CheckCircle, XCircle, Loader2, Trash2, Eye, Edit } from 'lucide-react';
+import { Users, ArrowLeft, PlusCircle, CheckCircle, XCircle, Loader2, Trash2, Eye, Edit, Copy } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Tournament } from '@/types/tournament';
 import type { PlayerRegistration } from '@/types/playerRegistration';
@@ -108,10 +108,9 @@ export default function ViewRegistrationsPage() {
       }
       
       const payload: Partial<PlayerRegistration> = {
-        ...updatedData, // contains all fields from the form
-        paymentScreenshotUrl: finalScreenshotUrl, // use the newly uploaded URL or keep existing if no new file
+        ...updatedData, 
+        paymentScreenshotUrl: finalScreenshotUrl, 
       };
-      // Remove id and tournamentId from payload as they should not be updated directly via PUT body for this registrationId
       delete (payload as any).id; 
       delete (payload as any).tournamentId;
 
@@ -123,7 +122,7 @@ export default function ViewRegistrationsPage() {
       });
       setIsEditModalOpen(false);
       setEditingRegistration(null);
-      fetchRegistrationsByTournamentId(tournamentId); // Refresh list
+      fetchRegistrationsByTournamentId(tournamentId); 
     } catch (e) {
       toast({
         title: "Error Updating Registration",
@@ -137,14 +136,22 @@ export default function ViewRegistrationsPage() {
 
 
   const toggleFeePaidStatus = async (registration: PlayerRegistration) => {
-    const updates: Partial<PlayerRegistration> = { feePaid: !registration.feePaid };
+    const updates: Partial<PlayerRegistration> = { ...registration, feePaid: !registration.feePaid };
+    // Remove id and tournamentId from the direct update payload if your API expects only changes
+    // However, sending the full object (minus id) is often fine for PUT.
+    // For this specific hook, updateRegistration takes the ID separately.
+    const payloadToUpdate = { ...updates };
+    delete (payloadToUpdate as any).id;
+    delete (payloadToUpdate as any).tournamentId;
+
+
     try {
-      await updateRegistration(registration.id, updates);
+      await updateRegistration(registration.id, payloadToUpdate);
       toast({
         title: "Payment Status Updated",
         description: `Fee payment status for ${registration.playerName} has been updated.`,
       });
-       fetchRegistrationsByTournamentId(tournamentId); // Refresh list
+       fetchRegistrationsByTournamentId(tournamentId); 
     } catch (e) {
        toast({
         title: "Error Updating Status",
@@ -153,6 +160,43 @@ export default function ViewRegistrationsPage() {
       });
     }
   };
+
+  const handleCopyDataForExcel = () => {
+    if (currentRegistrations.length === 0) {
+      toast({ title: "No Data", description: "There are no registrations to copy." });
+      return;
+    }
+    const header = [
+      "Player Name", "Email", "Gender", "DOB", "Organization", "Mobile", 
+      "FIDE Rating", "FIDE ID", "Fee Paid", "Payment Screenshot URL", "Registered On"
+    ].join("\t");
+
+    const dataRows = currentRegistrations.map(reg => [
+      reg.playerName,
+      reg.playerEmail || "",
+      reg.gender || "",
+      reg.dob ? format(new Date(reg.dob), 'yyyy-MM-dd') : "",
+      reg.organization || "",
+      reg.mobile || "",
+      String(reg.fideRating || 0),
+      reg.fideId || "-",
+      reg.feePaid ? "Yes" : "No",
+      reg.paymentScreenshotUrl || "",
+      format(new Date(reg.registrationDate), 'yyyy-MM-dd HH:mm')
+    ].join("\t")).join("\n");
+
+    const tsvData = `${header}\n${dataRows}`;
+
+    navigator.clipboard.writeText(tsvData)
+      .then(() => {
+        toast({ title: "Data Copied!", description: "Registration data copied to clipboard. You can now paste it into Excel." });
+      })
+      .catch(err => {
+        console.error("Failed to copy data: ", err);
+        toast({ title: "Copy Failed", description: "Could not copy data to clipboard.", variant: "destructive" });
+      });
+  };
+
 
   if (isLoadingTournamentDetails || tournament === undefined) {
     return (
@@ -195,16 +239,19 @@ export default function ViewRegistrationsPage() {
           <Users className="w-8 h-8 mr-3 text-primary" />
           Registered Players: {tournament?.name}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
            {(tournament?.status === 'Active' || tournament?.status === 'Upcoming') && (
             <Button asChild>
                 <Link href={`/dashboard/tournaments/${tournamentId}/register`}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Register New Player
+                <PlusCircle className="mr-2 h-4 w-4" /> Register Player
                 </Link>
             </Button>
             )}
+          <Button variant="outline" onClick={handleCopyDataForExcel}>
+            <Copy className="mr-2 h-4 w-4" /> Copy Data for Excel
+          </Button>
           <Button variant="outline" asChild>
-            <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Link>
+            <Link href="/dashboard"><ArrowLeft className="mr-2 h-4 w-4" /> Back</Link>
           </Button>
         </div>
       </div>
@@ -231,9 +278,11 @@ export default function ViewRegistrationsPage() {
                     <TableHead>Player Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Gender</TableHead>
-                    <TableHead>FIDE Rating</TableHead>
+                    <TableHead>DOB</TableHead>
                     <TableHead>Organization</TableHead>
                     <TableHead>Mobile</TableHead>
+                    <TableHead>FIDE Rating</TableHead>
+                    <TableHead>FIDE ID</TableHead>
                     <TableHead className="text-center">Fee Paid</TableHead>
                     <TableHead className="text-center">Screenshot</TableHead>
                     <TableHead>Registered On</TableHead>
@@ -246,9 +295,11 @@ export default function ViewRegistrationsPage() {
                       <TableCell className="font-medium">{reg.playerName}</TableCell>
                       <TableCell>{reg.playerEmail || 'N/A'}</TableCell>
                       <TableCell>{reg.gender || 'N/A'}</TableCell>
-                      <TableCell>{reg.fideRating > 0 ? reg.fideRating : 'Unrated'}</TableCell>
+                      <TableCell>{reg.dob ? format(new Date(reg.dob), 'PP') : 'N/A'}</TableCell>
                       <TableCell>{reg.organization || 'N/A'}</TableCell>
                       <TableCell>{reg.mobile || 'N/A'}</TableCell>
+                      <TableCell>{reg.fideRating > 0 ? reg.fideRating : 'Unrated'}</TableCell>
+                      <TableCell>{reg.fideId || 'N/A'}</TableCell>
                       <TableCell className="text-center">
                         <Button 
                           variant="ghost" 
@@ -335,3 +386,5 @@ export default function ViewRegistrationsPage() {
     </div>
   );
 }
+
+    
