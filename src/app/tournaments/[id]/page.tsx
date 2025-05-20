@@ -18,11 +18,30 @@ import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListCheck
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { PlayerRegistration } from '@/types/playerRegistration';
 import type { PlayerScore } from '@/types/tournamentResult';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+// Helper function to compare standings (simplified for this context)
+const areStandingsEqual = (s1: PlayerScore[], s2: PlayerScore[]): boolean => {
+  if (!s1 && !s2) return true; // Both null/undefined
+  if (!s1 || !s2) return false; // One is null/undefined
+  if (s1.length !== s2.length) return false;
+  for (let i = 0; i < s1.length; i++) {
+    // Comparing essential fields that define a standing entry's identity and core data
+    if (s1[i].playerId !== s2[i].playerId || 
+        s1[i].totalScore !== s2[i].totalScore || 
+        s1[i].roundScores.length !== s2[i].roundScores.length) {
+      return false;
+    }
+    for (let j = 0; j < s1[i].roundScores.length; j++) {
+      if (s1[i].roundScores[j] !== s2[i].roundScores[j]) return false;
+    }
+  }
+  return true;
+};
 
 
 export default function TournamentDetailsPage() {
@@ -92,6 +111,7 @@ export default function TournamentDetailsPage() {
           playerName: playerRegInfo?.playerName || ps.playerName || 'N/A',
           fideRating: playerRegInfo?.fideRating !== undefined ? playerRegInfo.fideRating : ps.fideRating,
           roundScores: newRoundScores.slice(0, currentTotalRounds),
+          totalScore: ps.totalScore, // Assuming totalScore is correctly calculated by the hook/API
         };
       });
 
@@ -101,9 +121,21 @@ export default function TournamentDetailsPage() {
         }
         return (a.playerName || 'N/A').localeCompare(b.playerName || 'N/A');
       });
-      setTournamentStandings(sortedStandings);
+      
+      setTournamentStandings(prevStandings => {
+        if (!areStandingsEqual(prevStandings, sortedStandings)) {
+          return sortedStandings;
+        }
+        return prevStandings;
+      });
+
     } else if (tournament) { 
-        setTournamentStandings([]);
+        setTournamentStandings(prevStandings => {
+          if (prevStandings.length !== 0) {
+            return [];
+          }
+          return prevStandings;
+        });
     }
   }, [currentTournamentResult, tournamentId, tournament, registeredPlayers]);
 
@@ -189,7 +221,7 @@ export default function TournamentDetailsPage() {
         playerName,
         playerEmail,
         feePaid: false, 
-        gender: gender || undefined, // Pass undefined if gender is not selected
+        gender: gender || undefined, 
         dob,
         organization,
         mobile,
