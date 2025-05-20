@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserPlus, Loader2, ArrowLeft, ShieldAlert, VenetianMask, Cake, Building, Phone, TargetIcon } from 'lucide-react';
+import { UserPlus, Loader2, ArrowLeft, ShieldAlert, Image as ImageIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { Tournament } from '@/types/tournament';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -38,6 +38,7 @@ export default function RegisterPlayerPage() {
   const [mobile, setMobile] = useState('');
   const [fideRating, setFideRating] = useState<number | ''>(0);
   const [fideId, setFideId] = useState('-');
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,7 +56,7 @@ export default function RegisterPlayerPage() {
         <Card>
           <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
           <CardContent className="space-y-4">
-            {[...Array(7)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
             <Skeleton className="h-6 w-1/4" />
           </CardContent>
           <CardFooter><Skeleton className="h-10 w-24" /></CardFooter>
@@ -99,7 +100,7 @@ export default function RegisterPlayerPage() {
 
     setIsSubmitting(true);
     try {
-      addRegistration({
+      await addRegistration({ // Changed to await
         tournamentId: tournament.id,
         tournamentName: tournament.name,
         playerName,
@@ -111,6 +112,7 @@ export default function RegisterPlayerPage() {
         mobile,
         fideRating: Number(fideRating) || 0,
         fideId: fideId || '-',
+        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
       });
       toast({
         title: "Player Registered!",
@@ -126,12 +128,14 @@ export default function RegisterPlayerPage() {
       setMobile('');
       setFideRating(0);
       setFideId('-');
-      // router.push(`/dashboard/tournaments/${tournament.id}/registrations`);
+      setPaymentScreenshotUrl('');
+      // Consider redirecting or refreshing data:
+      // router.push(`/dashboard/tournaments/${tournament.id}/registrations`); 
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
         title: "Registration Failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: (error as Error).message || "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -257,6 +261,20 @@ export default function RegisterPlayerPage() {
               </div>
             </div>
             
+            <div>
+              <Label htmlFor="paymentScreenshotUrl">Payment Screenshot URL</Label>
+              <Input
+                id="paymentScreenshotUrl"
+                type="url"
+                value={paymentScreenshotUrl}
+                onChange={(e) => setPaymentScreenshotUrl(e.target.value)}
+                placeholder="https://example.com/payment.jpg"
+              />
+              <p className="text-sm text-muted-foreground mt-1">
+                Upload the screenshot to a service like Cloudinary or Imgur and paste the direct image URL here.
+              </p>
+            </div>
+
             <div className="flex items-center space-x-2 pt-2">
               <Checkbox 
                 id="feePaid" 
@@ -264,13 +282,13 @@ export default function RegisterPlayerPage() {
                 onCheckedChange={(checked) => setFeePaid(checked as boolean)}
               />
               <Label htmlFor="feePaid" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                Entry Fee Paid
+                Entry Fee Paid (Confirmed by Organizer)
               </Label>
             </div>
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={isSubmitting || isLoadingRegistrations} className="w-full sm:w-auto">
-              {isSubmitting ? (
+              {isSubmitting || isLoadingRegistrations ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Register Player

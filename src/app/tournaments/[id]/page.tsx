@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { notFound, useParams } from 'next/navigation';
-import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, VenetianMask, Cake, Building, Phone, TargetIcon, ListOrdered } from 'lucide-react';
+import { CalendarDays, MapPin, Users, DollarSign, Trophy, Clock, Info, ListChecks, BarChart3, UserPlus, Loader2, Eye, ListOrdered, Image as ImageIconLucide } from 'lucide-react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -60,6 +60,8 @@ export default function TournamentDetailsPage() {
   const [mobile, setMobile] = useState('');
   const [fideRating, setFideRating] = useState<number | ''>(0);
   const [fideId, setFideId] = useState('-');
+  const [paymentScreenshotUrl, setPaymentScreenshotUrl] = useState('');
+
 
   const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
 
@@ -92,7 +94,7 @@ export default function TournamentDetailsPage() {
         if (b.fideRating && a.fideRating && b.fideRating !== a.fideRating) {
           return b.fideRating - a.fideRating;
         }
-        return a.playerName.localeCompare(b.playerName);
+        return (a.playerName || 'N/A').localeCompare(b.playerName || 'N/A');
       });
       setTournamentStandings(sortedStandings);
     } else {
@@ -164,6 +166,7 @@ export default function TournamentDetailsPage() {
         mobile,
         fideRating: Number(fideRating) || 0,
         fideId: fideId || '-',
+        paymentScreenshotUrl: paymentScreenshotUrl || undefined,
       });
       toast({
         title: "Registration Submitted!",
@@ -177,6 +180,7 @@ export default function TournamentDetailsPage() {
       setMobile('');
       setFideRating(0);
       setFideId('-');
+      setPaymentScreenshotUrl('');
     } catch (error) {
       console.error("Failed to register player:", error);
       toast({
@@ -206,6 +210,7 @@ export default function TournamentDetailsPage() {
                 style={{objectFit:"cover"}}
                 className="bg-muted"
                 data-ai-hint="chess tournament"
+                priority
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.srcset = `https://placehold.co/1200x400.png`;
@@ -346,6 +351,20 @@ export default function TournamentDetailsPage() {
                                   className="mt-1"
                                 />
                               </div>
+                            </div>
+                            <div>
+                              <Label htmlFor="publicPaymentScreenshotUrl">Payment Screenshot URL</Label>
+                              <Input
+                                id="publicPaymentScreenshotUrl"
+                                type="url"
+                                value={paymentScreenshotUrl}
+                                onChange={(e) => setPaymentScreenshotUrl(e.target.value)}
+                                placeholder="https://example.com/payment.jpg"
+                                className="mt-1"
+                              />
+                               <p className="text-sm text-muted-foreground mt-1">
+                                Please upload your payment proof to a service like Imgur/Cloudinary and paste the image URL here.
+                              </p>
                             </div>
                           </CardContent>
                           <CardFooter>

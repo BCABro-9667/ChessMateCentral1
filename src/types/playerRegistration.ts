@@ -15,4 +15,5 @@ export interface PlayerRegistration {
   mobile?: string;
   fideRating: number; // Will default to 0 if not provided
   fideId: string;     // Will default to '-' if not provided
+  paymentScreenshotUrl?: string; // URL to the uploaded payment screenshot
 }

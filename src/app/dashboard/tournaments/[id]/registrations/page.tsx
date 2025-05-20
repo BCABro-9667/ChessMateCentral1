@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, ArrowLeft, PlusCircle, Edit3, Trash2, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Users, ArrowLeft, PlusCircle, CheckCircle, XCircle, Loader2, Trash2, Eye } from 'lucide-react';
 import { format } from 'date-fns';
 import type { Tournament } from '@/types/tournament';
 import type { PlayerRegistration } from '@/types/playerRegistration';
@@ -76,12 +76,26 @@ export default function ViewRegistrationsPage() {
     }
   };
 
-  const toggleFeePaidStatus = async (regId: string, currentStatus: boolean) => {
+  const toggleFeePaidStatus = async (registration: PlayerRegistration) => {
     try {
-      await updateRegistration(regId, { feePaid: !currentStatus });
+      // Create the update payload, explicitly keeping other fields to avoid accidental removal if API structure expects full objects
+      const updates: Partial<PlayerRegistration> = { 
+        feePaid: !registration.feePaid,
+        // To ensure other fields are not lost if the PUT request expects the full object or if `updates` is used to replace the whole doc:
+        playerName: registration.playerName,
+        playerEmail: registration.playerEmail,
+        gender: registration.gender,
+        dob: registration.dob,
+        organization: registration.organization,
+        mobile: registration.mobile,
+        fideRating: registration.fideRating,
+        fideId: registration.fideId,
+        paymentScreenshotUrl: registration.paymentScreenshotUrl,
+      };
+      await updateRegistration(registration.id, updates);
       toast({
         title: "Payment Status Updated",
-        description: `Fee payment status for the player has been updated.`,
+        description: `Fee payment status for ${registration.playerName} has been updated.`,
       });
     } catch (e) {
        toast({
@@ -157,7 +171,7 @@ export default function ViewRegistrationsPage() {
         <CardContent>
           {isLoadingRegistrations && currentRegistrations.length === 0 ? (
             <div className="space-y-2">
-              {[1,2,3].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+              {[...Array(5)].map(i => <Skeleton key={i} className="h-12 w-full" />)}
             </div>
           ) : !isLoadingRegistrations && currentRegistrations.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No players registered for this tournament yet.</p>
@@ -168,8 +182,13 @@ export default function ViewRegistrationsPage() {
                   <TableRow>
                     <TableHead>Player Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Registered On</TableHead>
+                    <TableHead>Gender</TableHead>
+                    <TableHead>FIDE Rating</TableHead>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Mobile</TableHead>
                     <TableHead className="text-center">Fee Paid</TableHead>
+                    <TableHead className="text-center">Screenshot</TableHead>
+                    <TableHead>Registered On</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -178,14 +197,18 @@ export default function ViewRegistrationsPage() {
                     <TableRow key={reg.id}>
                       <TableCell className="font-medium">{reg.playerName}</TableCell>
                       <TableCell>{reg.playerEmail || 'N/A'}</TableCell>
-                      <TableCell>{format(new Date(reg.registrationDate), 'PPp')}</TableCell>
+                      <TableCell>{reg.gender || 'N/A'}</TableCell>
+                      <TableCell>{reg.fideRating > 0 ? reg.fideRating : 'Unrated'}</TableCell>
+                      <TableCell>{reg.organization || 'N/A'}</TableCell>
+                      <TableCell>{reg.mobile || 'N/A'}</TableCell>
                       <TableCell className="text-center">
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          onClick={() => toggleFeePaidStatus(reg.id, reg.feePaid)}
+                          onClick={() => toggleFeePaidStatus(reg)}
                           className={reg.feePaid ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}
                           disabled={isLoadingRegistrations}
+                          title={reg.feePaid ? "Mark as Unpaid" : "Mark as Paid"}
                         >
                           {isLoadingRegistrations && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           {reg.feePaid ? 
@@ -195,6 +218,23 @@ export default function ViewRegistrationsPage() {
                           {reg.feePaid ? 'Paid' : 'Unpaid'}
                         </Button>
                       </TableCell>
+                      <TableCell className="text-center">
+                        {reg.paymentScreenshotUrl ? (
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            asChild
+                            title="View Payment Screenshot"
+                          >
+                            <a href={reg.paymentScreenshotUrl} target="_blank" rel="noopener noreferrer">
+                              <Eye className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">N/A</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{format(new Date(reg.registrationDate), 'PPp')}</TableCell>
                       <TableCell className="text-right">
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
